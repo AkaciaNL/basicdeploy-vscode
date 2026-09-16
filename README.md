@@ -1,4 +1,4 @@
-<p align="center"><img src="./logo.svg" width="96" alt="BasicDeploy"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/AkaciaNL/basicdeploy-vscode/main/media/icon.png" width="96" alt="BasicDeploy"></p>
 
 # BasicDeploy for VS Code
 

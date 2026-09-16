@@ -83,6 +83,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTools(context, api);
   registerChatParticipant(context, api);
   registerCommands(context, api, {
+    auth,
     containers,
     database,
     storage,
@@ -100,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 interface Providers {
+  auth: BasicDeployAuthProvider;
   containers: ContainersProvider;
   database: DatabaseProvider;
   storage: StorageProvider;
@@ -117,7 +119,7 @@ function registerCommands(
   api: BasicDeployApi,
   p: Providers,
 ): void {
-  const { containers, database, storage, kafka, domains, support, rowsDoc, ticketDoc, logs, refreshAll } = p;
+  const { auth, containers, database, storage, kafka, domains, support, rowsDoc, ticketDoc, logs, refreshAll } = p;
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
@@ -127,17 +129,13 @@ function registerCommands(
   });
 
   reg("basicdeploy.signOut", async () => {
-    // Remove via the accounts menu is the native path; this command clears our
-    // stored key directly for convenience.
-    const sessions = await vscode.authentication.getSession(AUTH_PROVIDER_ID, [], {
-      createIfNone: false,
-    });
-    if (sessions) {
-      await vscode.commands.executeCommand("workbench.action.closeAccountsMenu");
+    if (!(await auth.currentKey())) {
+      vscode.window.showInformationMessage("You are not signed in to BasicDeploy.");
+      return;
     }
-    vscode.window.showInformationMessage(
-      "Use the Accounts menu (bottom left) to sign out of BasicDeploy.",
-    );
+    await auth.removeSession();
+    refreshAll();
+    vscode.window.showInformationMessage("Signed out of BasicDeploy.");
   });
 
   reg("basicdeploy.refresh", () => containers.refresh());

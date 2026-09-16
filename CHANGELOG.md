@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- Fixed Sign Out: it now actually clears the stored API key (was a no-op that only pointed at the Accounts menu).
+- README logo uses an absolute HTTPS PNG (the Marketplace rejects SVG and relative image paths).
+- Dropped the incorrect "Azure" Marketplace category.
+
+
 ## 0.5.0
 
 - Replaced the row browser and ticket thread webviews with native read-only editor documents (bd-rows and bd-ticket schemes): tables render as aligned text, tickets as markdown. Paging and ticket actions live in the editor title bar.
