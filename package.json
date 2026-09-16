@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "basicdeploy",
   "license": "MIT",
   "repository": {
@@ -67,8 +67,16 @@
           "name": "Containers"
         },
         {
-          "id": "basicdeploy.data",
-          "name": "Data"
+          "id": "basicdeploy.database",
+          "name": "Database"
+        },
+        {
+          "id": "basicdeploy.storage",
+          "name": "Storage"
+        },
+        {
+          "id": "basicdeploy.kafka",
+          "name": "Kafka"
         },
         {
           "id": "basicdeploy.domains",
@@ -96,18 +104,31 @@
       { "command": "basicdeploy.streamLogs", "title": "BasicDeploy: Stream Logs (Live)", "icon": "$(pulse)" },
       { "command": "basicdeploy.deployToContainer", "title": "BasicDeploy: Deploy Workspace Into This Container" },
       { "command": "basicdeploy.openSsh", "title": "BasicDeploy: Open Remote SSH", "icon": "$(remote)" },
-      { "command": "basicdeploy.refreshData", "title": "BasicDeploy: Refresh Data", "icon": "$(refresh)" },
       { "command": "basicdeploy.refreshDomains", "title": "BasicDeploy: Refresh Domains", "icon": "$(refresh)" },
-      { "command": "basicdeploy.copyValue", "title": "BasicDeploy: Copy Value", "icon": "$(copy)" },
       { "command": "basicdeploy.addDomain", "title": "BasicDeploy: Add Custom Domain", "icon": "$(add)" },
-      { "command": "basicdeploy.removeDomain", "title": "BasicDeploy: Remove Custom Domain", "icon": "$(trash)" }
+      { "command": "basicdeploy.removeDomain", "title": "BasicDeploy: Remove Custom Domain", "icon": "$(trash)" },
+      { "command": "basicdeploy.refreshDatabase", "title": "BasicDeploy: Refresh Database", "icon": "$(refresh)" },
+      { "command": "basicdeploy.openTable", "title": "BasicDeploy: Browse Table" },
+      { "command": "basicdeploy.loadMoreTables", "title": "BasicDeploy: Load More Tables" },
+      { "command": "basicdeploy.refreshStorage", "title": "BasicDeploy: Refresh Storage", "icon": "$(refresh)" },
+      { "command": "basicdeploy.openObject", "title": "BasicDeploy: Open Object" },
+      { "command": "basicdeploy.loadMoreObjects", "title": "BasicDeploy: Load More Objects" },
+      { "command": "basicdeploy.refreshKafka", "title": "BasicDeploy: Refresh Kafka", "icon": "$(refresh)" },
+      { "command": "basicdeploy.createTopic", "title": "BasicDeploy: New Kafka Topic", "icon": "$(add)" },
+      { "command": "basicdeploy.purgeTopic", "title": "BasicDeploy: Purge Topic" },
+      { "command": "basicdeploy.deleteTopic", "title": "BasicDeploy: Delete Topic", "icon": "$(trash)" },
+      { "command": "basicdeploy.copyConnectionInfo", "title": "BasicDeploy: Copy Connection Info", "icon": "$(key)" }
     ],
     "menus": {
       "view/title": [
         { "command": "basicdeploy.deployWorkspace", "when": "view == basicdeploy.containers", "group": "navigation@1" },
         { "command": "basicdeploy.createContainer", "when": "view == basicdeploy.containers", "group": "navigation@2" },
         { "command": "basicdeploy.refresh", "when": "view == basicdeploy.containers", "group": "navigation@3" },
-        { "command": "basicdeploy.refreshData", "when": "view == basicdeploy.data", "group": "navigation@1" },
+        { "command": "basicdeploy.copyConnectionInfo", "when": "view == basicdeploy.database", "group": "navigation@1" },
+        { "command": "basicdeploy.refreshDatabase", "when": "view == basicdeploy.database", "group": "navigation@2" },
+        { "command": "basicdeploy.refreshStorage", "when": "view == basicdeploy.storage", "group": "navigation@1" },
+        { "command": "basicdeploy.createTopic", "when": "view == basicdeploy.kafka", "group": "navigation@1" },
+        { "command": "basicdeploy.refreshKafka", "when": "view == basicdeploy.kafka", "group": "navigation@2" },
         { "command": "basicdeploy.refreshDomains", "when": "view == basicdeploy.domains", "group": "navigation@1" }
       ],
       "view/item/context": [
@@ -120,9 +141,10 @@
         { "command": "basicdeploy.wake", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "2_power@1" },
         { "command": "basicdeploy.sleep", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "2_power@2" },
         { "command": "basicdeploy.delete", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "9_danger" },
-        { "command": "basicdeploy.copyValue", "when": "view == basicdeploy.data && viewItem == bdDataItem", "group": "inline@1" },
         { "command": "basicdeploy.addDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainContainer", "group": "inline@1" },
-        { "command": "basicdeploy.removeDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainItem", "group": "inline@1" }
+        { "command": "basicdeploy.removeDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainItem", "group": "inline@1" },
+        { "command": "basicdeploy.purgeTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "1_topic@1" },
+        { "command": "basicdeploy.deleteTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "9_danger" }
       ]
     },
     "languageModelTools": [

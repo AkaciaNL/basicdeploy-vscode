@@ -2,7 +2,10 @@ import * as vscode from "vscode";
 import { BasicDeployApi } from "./api";
 import { AUTH_PROVIDER_ID, BasicDeployAuthProvider, getSession } from "./auth";
 import { ContainerItem, ContainersProvider } from "./containersView";
-import { DataNode, DataProvider } from "./dataView";
+import { DatabaseProvider } from "./databaseView";
+import { StorageProvider, openObject } from "./storageView";
+import { KafkaProvider, TopicNode } from "./kafkaView";
+import { RowsPanel } from "./rowsPanel";
 import { DomainNode, DomainsProvider } from "./domainsView";
 import { LogStreamer } from "./logStream";
 import { connectSsh, forgetSshHost } from "./ssh";
@@ -31,20 +34,26 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const containers = new ContainersProvider(api);
-  const data = new DataProvider(api);
+  const database = new DatabaseProvider(api);
+  const storage = new StorageProvider(api);
+  const kafka = new KafkaProvider(api);
   const domains = new DomainsProvider(api);
   const logs = new LogStreamer(api);
   context.subscriptions.push(logs);
 
   const refreshAll = () => {
     containers.refresh();
-    data.refresh();
+    database.refresh();
+    storage.refresh();
+    kafka.refresh();
     domains.refresh();
   };
 
   context.subscriptions.push(
     vscode.window.createTreeView("basicdeploy.containers", { treeDataProvider: containers }),
-    vscode.window.createTreeView("basicdeploy.data", { treeDataProvider: data }),
+    vscode.window.createTreeView("basicdeploy.database", { treeDataProvider: database }),
+    vscode.window.createTreeView("basicdeploy.storage", { treeDataProvider: storage }),
+    vscode.window.createTreeView("basicdeploy.kafka", { treeDataProvider: kafka }),
     vscode.window.createTreeView("basicdeploy.domains", { treeDataProvider: domains }),
   );
 
@@ -59,21 +68,36 @@ export function activate(context: vscode.ExtensionContext): void {
 
   registerTools(context, api);
   registerChatParticipant(context, api);
-  registerCommands(context, api, containers, data, domains, logs, refreshAll);
+  registerCommands(context, api, {
+    containers,
+    database,
+    storage,
+    kafka,
+    domains,
+    logs,
+    refreshAll,
+  });
 
   // Prime the views if already signed in.
   refreshAll();
 }
 
+interface Providers {
+  containers: ContainersProvider;
+  database: DatabaseProvider;
+  storage: StorageProvider;
+  kafka: KafkaProvider;
+  domains: DomainsProvider;
+  logs: LogStreamer;
+  refreshAll: () => void;
+}
+
 function registerCommands(
   context: vscode.ExtensionContext,
   api: BasicDeployApi,
-  containers: ContainersProvider,
-  data: DataProvider,
-  domains: DomainsProvider,
-  logs: LogStreamer,
-  refreshAll: () => void,
+  p: Providers,
 ): void {
+  const { containers, database, storage, kafka, domains, logs, refreshAll } = p;
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
@@ -97,8 +121,91 @@ function registerCommands(
   });
 
   reg("basicdeploy.refresh", () => containers.refresh());
-  reg("basicdeploy.refreshData", () => data.refresh());
+  reg("basicdeploy.refreshDatabase", () => database.refresh());
+  reg("basicdeploy.refreshStorage", () => storage.refresh());
+  reg("basicdeploy.refreshKafka", () => kafka.refresh());
   reg("basicdeploy.refreshDomains", () => domains.refresh());
+
+  reg("basicdeploy.loadMoreTables", () => database.loadMore());
+  reg("basicdeploy.loadMoreObjects", () => storage.loadMore());
+
+  reg("basicdeploy.openTable", (table?: string) => {
+    if (table) {
+      RowsPanel.open(api, table);
+    }
+  });
+
+  reg("basicdeploy.openObject", async (key?: string) => {
+    if (!key) {
+      return;
+    }
+    try {
+      await openObject(context, api, key);
+    } catch (err) {
+      vscode.window.showErrorMessage(`Could not open object: ${errorMessage(err)}`);
+    }
+  });
+
+  reg("basicdeploy.copyConnectionInfo", async () => {
+    await withProgress("Fetching connection info...", async () => {
+      const info = await api.connectInfo();
+      const text = info.copyForLlm ? String(info.copyForLlm) : JSON.stringify(info, null, 2);
+      await vscode.env.clipboard.writeText(text);
+      vscode.window.showInformationMessage("Connection info copied to clipboard.");
+    });
+  });
+
+  reg("basicdeploy.createTopic", async () => {
+    const label = await vscode.window.showInputBox({
+      title: "New Kafka topic",
+      prompt: "Optional label (a topic name is generated with your prefix)",
+      ignoreFocusOut: true,
+    });
+    if (label === undefined) {
+      return;
+    }
+    await withProgress("Creating topic...", async () => {
+      const name = await api.createTopic(label.trim() || undefined);
+      kafka.refresh();
+      vscode.window.showInformationMessage(`Created topic ${name}`);
+    });
+  });
+
+  reg("basicdeploy.purgeTopic", async (node?: TopicNode) => {
+    if (!node?.topic) {
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Purge (empty) topic ${node.topic.name}?`,
+      { modal: true },
+      "Purge",
+    );
+    if (confirm !== "Purge") {
+      return;
+    }
+    await withProgress(`Purging ${node.topic.name}...`, async () => {
+      await api.purgeTopic(node.topic!.name);
+      kafka.refresh();
+    });
+  });
+
+  reg("basicdeploy.deleteTopic", async (node?: TopicNode) => {
+    if (!node?.topic) {
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Delete topic ${node.topic.name}? This cannot be undone.`,
+      { modal: true },
+      "Delete",
+    );
+    if (confirm !== "Delete") {
+      return;
+    }
+    await withProgress(`Deleting ${node.topic.name}...`, async () => {
+      await api.deleteTopic(node.topic!.name);
+      kafka.refresh();
+    });
+  });
 
   reg("basicdeploy.createContainer", async () => {
     await withProgress("Creating container...", async () => {
@@ -198,14 +305,6 @@ function registerCommands(
     } catch (err) {
       vscode.window.showErrorMessage(`SSH failed: ${errorMessage(err)}`);
     }
-  });
-
-  reg("basicdeploy.copyValue", async (node?: DataNode) => {
-    if (!node?.copyValue) {
-      return;
-    }
-    await vscode.env.clipboard.writeText(node.copyValue);
-    vscode.window.showInformationMessage("Copied to clipboard.");
   });
 
   reg("basicdeploy.addDomain", async (node?: DomainNode) => {

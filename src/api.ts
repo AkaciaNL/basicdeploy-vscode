@@ -40,6 +40,65 @@ export interface Account {
   [key: string]: unknown;
 }
 
+export interface TableInfo {
+  name: string;
+  rowEstimate: number;
+  sizeBytes: number;
+}
+export interface TablePage {
+  items: TableInfo[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+export interface TablePreview {
+  table: string;
+  columns: string[];
+  rows: string[][];
+  total: number;
+  offset: number;
+  limit: number;
+}
+export interface ObjectInfo {
+  key: string;
+  size: number;
+  lastModified: string;
+}
+export interface ObjectPage {
+  items: ObjectInfo[];
+  nextAfter?: string | null;
+}
+export interface KafkaTopic {
+  name: string;
+  partitions: number;
+  retentionMs: number;
+  reservedBytes: number;
+}
+export interface KafkaLimits {
+  maxStorageBytes: number;
+  retentionMs: number;
+  maxTopics: number;
+  maxPartitionsPerTopic: number;
+  throughputBytesPerSec: number;
+}
+export interface KafkaInfo {
+  enabled: boolean;
+  bootstrap?: string;
+  externalBootstrap?: string;
+  username?: string;
+  password?: string;
+  groupPrefix?: string;
+  saslMechanism?: string;
+  securityProtocol?: string;
+  topics: KafkaTopic[];
+  usedBytes: number;
+  limits: KafkaLimits;
+}
+export interface ObjectBytes {
+  bytes: Uint8Array;
+  contentType: string;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -143,6 +202,78 @@ export class BasicDeployApi {
       { headers: await this.headers() },
     );
     return res?.logs ?? "";
+  }
+
+  // --- Per-user data browsing (Postgres / object storage / Kafka) ---
+
+  async connectInfo(): Promise<{ copyForLlm?: string; [k: string]: unknown }> {
+    return this.request("/data/connect", { headers: await this.headers() });
+  }
+
+  async tables(offset = 0, limit = 100): Promise<TablePage> {
+    return this.request<TablePage>(
+      `/data/tables?offset=${offset}&limit=${limit}`,
+      { headers: await this.headers() },
+    );
+  }
+
+  async rows(table: string, offset = 0, limit = 50): Promise<TablePreview> {
+    const q = `table=${encodeURIComponent(table)}&offset=${offset}&limit=${limit}`;
+    return this.request<TablePreview>(`/data/rows?${q}`, { headers: await this.headers() });
+  }
+
+  async objects(after?: string, limit = 100): Promise<ObjectPage> {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (after) {
+      q.set("after", after);
+    }
+    return this.request<ObjectPage>(`/data/objects?${q.toString()}`, {
+      headers: await this.headers(),
+    });
+  }
+
+  async getObject(key: string): Promise<ObjectBytes> {
+    const res = await fetch(
+      `${this.baseUrl()}/data/object?key=${encodeURIComponent(key)}`,
+      { headers: await this.headers() },
+    );
+    if (!res.ok) {
+      throw new ApiError(res.status, `Object read failed (${res.status}).`);
+    }
+    const buf = await res.arrayBuffer();
+    return {
+      bytes: new Uint8Array(buf),
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+    };
+  }
+
+  async kafkaInfo(): Promise<KafkaInfo> {
+    return this.request<KafkaInfo>("/kafka/info", { headers: await this.headers() });
+  }
+
+  async createTopic(label?: string): Promise<string> {
+    const res = await this.request<{ name?: string }>("/kafka/topics", {
+      method: "POST",
+      headers: await this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify(label ? { label } : {}),
+    });
+    return res?.name ?? "";
+  }
+
+  async purgeTopic(name: string): Promise<void> {
+    await this.request<void>("/kafka/topics/purge", {
+      method: "POST",
+      headers: await this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async deleteTopic(name: string): Promise<void> {
+    await this.request<void>("/kafka/topics", {
+      method: "DELETE",
+      headers: await this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name }),
+    });
   }
 
   async listDomains(id: string): Promise<DomainView[]> {

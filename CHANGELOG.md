@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- Split the data surface into three views matching the web console: Database, Storage, Kafka.
+- Database view: list Postgres tables (paged), open a table in an in-editor row browser with prev/next paging.
+- Storage view: list bucket objects (cursor-paged), open an object (text/image/pdf) in the editor.
+- Kafka view: list topics with usage; create, purge, and delete topics.
+- Copy connection info (Postgres, S3, Kafka credentials) to the clipboard from the Database view.
+
 ## 0.2.0
 
 - Remote SSH into a container (managed SSH config include + per-container key, opens `/workspace`).

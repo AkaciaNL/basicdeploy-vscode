@@ -11,7 +11,9 @@ Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the curren
 - **`@basicdeploy` chat participant.** In the Chat view, type `@basicdeploy` then `/deploy`, `/logs <subdomain>`, `/new`, or `/list`.
 - **Remote SSH.** Open a container in a Remote-SSH window (or the `/workspace` folder). The extension writes a managed SSH config entry and per-container key; nothing in your own `~/.ssh/config` is overwritten.
 - **Live log streaming.** Tail a container's logs in an Output channel that refreshes every couple of seconds.
-- **Data view.** Per-container Postgres and object-storage connection details, one click to copy.
+- **Database view.** Browse your Postgres tables and page through rows in an in-editor viewer. Copy connection info in one click.
+- **Storage view.** Browse your object-storage bucket and open any object (text, image, or PDF) right in the editor.
+- **Kafka view.** See your topics with usage, and create, purge, or delete them.
 - **Domains view.** See, add, and remove custom domains per container.
 
 ## Getting started
@@ -36,8 +38,8 @@ Press `F5` in VS Code to launch an Extension Development Host.
 
 ## Roadmap
 
-- Kafka view and topic browsing.
-- In-editor data browsing (rows and objects), not just connection details.
+- Message browsing for Kafka topics.
+- Editing (not just read-only viewing) of rows and objects.
 - Marketplace and Open VSX listings, plus the MCP server in the GitHub MCP Registry.
 
 ## License
