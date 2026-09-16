@@ -1,0 +1,208 @@
+import * as vscode from "vscode";
+import * as os from "node:os";
+import * as path from "node:path";
+import * as fs from "node:fs/promises";
+import { BasicDeployApi, Container } from "./api";
+
+// The bastion (sshpiperd) reaches every container. The username is the
+// container's subdomain, the private key is issued per container by the
+// platform, and the bastion listens on 2222 at the DNS-only host (the app's
+// HTTPS apex is Cloudflare-proxied and blackholes SSH).
+const SSH_HOST = "ssh.basicdeploy.com";
+const SSH_PORT = 2222;
+const REMOTE_SSH_EXT = "ms-vscode-remote.remote-ssh";
+const REMOTE_WORKDIR = "/workspace";
+
+// We do not edit the user's main ~/.ssh/config in place. Instead we own a
+// single managed file and add one Include line at the top of the main config.
+// Every BasicDeploy host lives in the managed file, so uninstalling is a clean
+// one-line removal and we never clobber the user's own entries.
+function sshDir(): string {
+  return path.join(os.homedir(), ".ssh");
+}
+function managedConfigPath(): string {
+  return path.join(sshDir(), "basicdeploy_config");
+}
+function mainConfigPath(): string {
+  return path.join(sshDir(), "config");
+}
+function hostAlias(subdomain: string): string {
+  return `bd-${subdomain}`;
+}
+
+async function chmod600(p: string): Promise<void> {
+  try {
+    await fs.chmod(p, 0o600);
+  } catch {
+    // Windows and some filesystems lack POSIX perms; ssh tolerates it there.
+  }
+}
+
+// Persist the container's private key to a stable per-container file so the
+// SSH client and Remote-SSH can find it. Overwrites on every open so a rotated
+// key is picked up.
+async function writeKey(
+  context: vscode.ExtensionContext,
+  subdomain: string,
+  privateKeyPem: string,
+): Promise<string> {
+  const dir = path.join(context.globalStorageUri.fsPath, "ssh-keys");
+  await fs.mkdir(dir, { recursive: true });
+  const keyPath = path.join(dir, `${subdomain}.key`);
+  const body = privateKeyPem.endsWith("\n") ? privateKeyPem : privateKeyPem + "\n";
+  await fs.writeFile(keyPath, body, { mode: 0o600 });
+  await chmod600(keyPath);
+  return keyPath;
+}
+
+// Ensure the main ssh config pulls in our managed file. Idempotent.
+async function ensureInclude(): Promise<void> {
+  await fs.mkdir(sshDir(), { recursive: true });
+  const includeLine = `Include ${managedConfigPath()}`;
+  let current = "";
+  try {
+    current = await fs.readFile(mainConfigPath(), "utf8");
+  } catch {
+    // no main config yet
+  }
+  if (current.includes(includeLine)) {
+    return;
+  }
+  // Include must precede any Host block to apply globally, so prepend it.
+  const next = `${includeLine}\n\n${current}`;
+  await fs.writeFile(mainConfigPath(), next, { mode: 0o600 });
+  await chmod600(mainConfigPath());
+}
+
+// Upsert the Host block for one container in the managed config file.
+async function upsertHost(subdomain: string, keyPath: string): Promise<string> {
+  const alias = hostAlias(subdomain);
+  const block = [
+    `Host ${alias}`,
+    `    HostName ${SSH_HOST}`,
+    `    Port ${SSH_PORT}`,
+    `    User ${subdomain}`,
+    `    IdentityFile ${keyPath}`,
+    `    IdentitiesOnly yes`,
+    `    StrictHostKeyChecking accept-new`,
+    "",
+  ].join("\n");
+
+  let current = "";
+  try {
+    current = await fs.readFile(managedConfigPath(), "utf8");
+  } catch {
+    // first host
+  }
+
+  // Drop any existing block for this alias, then append the fresh one.
+  const filtered = stripHostBlock(current, alias);
+  const next = `${filtered.trimEnd()}\n\n${block}`.replace(/^\n+/, "");
+  await fs.writeFile(managedConfigPath(), next, { mode: 0o600 });
+  await chmod600(managedConfigPath());
+  return alias;
+}
+
+// Remove a `Host <alias>` block and its indented body from a config string.
+function stripHostBlock(config: string, alias: string): string {
+  const lines = config.split("\n");
+  const out: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const isHostLine = /^Host\s+/.test(line);
+    if (isHostLine) {
+      skipping = line.trim() === `Host ${alias}`;
+      if (skipping) {
+        continue;
+      }
+    }
+    if (skipping) {
+      // Indented continuation lines and blanks belong to the skipped block.
+      if (/^\s/.test(line) || line.trim() === "") {
+        continue;
+      }
+      skipping = false;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+async function ensureRemoteSshInstalled(): Promise<boolean> {
+  if (vscode.extensions.getExtension(REMOTE_SSH_EXT)) {
+    return true;
+  }
+  const install = "Install Remote-SSH";
+  const choice = await vscode.window.showInformationMessage(
+    "Remote development needs the Remote-SSH extension. Install it now?",
+    install,
+    "Cancel",
+  );
+  if (choice !== install) {
+    return false;
+  }
+  await vscode.commands.executeCommand("workbench.extensions.installExtension", REMOTE_SSH_EXT);
+  return !!vscode.extensions.getExtension(REMOTE_SSH_EXT);
+}
+
+// Full flow: fetch the container's key, write the SSH config, then hand off to
+// Remote-SSH to open a window connected to the container.
+export async function connectSsh(
+  context: vscode.ExtensionContext,
+  api: BasicDeployApi,
+  container: Container,
+): Promise<void> {
+  const full = await api.getContainer(container.id);
+  const key = full.sshKey || full.guestSshKey;
+  if (!key) {
+    vscode.window.showErrorMessage(
+      "No SSH key available for this container. Only the owner (or a shared guest) can connect.",
+    );
+    return;
+  }
+  if (!(await ensureRemoteSshInstalled())) {
+    return;
+  }
+
+  const keyPath = await writeKey(context, full.subdomain, key);
+  await ensureInclude();
+  const alias = await upsertHost(full.subdomain, keyPath);
+
+  const openFolder = "Open /workspace";
+  const newWindow = "New window";
+  const choice = await vscode.window.showQuickPick([openFolder, newWindow], {
+    placeHolder: `Connect to ${full.subdomain} over SSH`,
+  });
+  if (!choice) {
+    return;
+  }
+
+  if (choice === openFolder) {
+    const uri = vscode.Uri.parse(`vscode-remote://ssh-remote+${alias}${REMOTE_WORKDIR}`);
+    await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+  } else {
+    // Open an empty window attached to the host; the Remote-SSH command reads
+    // our managed config to resolve the alias.
+    await vscode.commands.executeCommand("opensshremotes.openEmptyWindow", { host: alias });
+  }
+}
+
+// Clean up a container's managed host block and key (on delete).
+export async function forgetSshHost(
+  context: vscode.ExtensionContext,
+  subdomain: string,
+): Promise<void> {
+  try {
+    const current = await fs.readFile(managedConfigPath(), "utf8");
+    const stripped = stripHostBlock(current, hostAlias(subdomain)).trimEnd() + "\n";
+    await fs.writeFile(managedConfigPath(), stripped, { mode: 0o600 });
+  } catch {
+    // no managed config, nothing to forget
+  }
+  try {
+    const keyPath = path.join(context.globalStorageUri.fsPath, "ssh-keys", `${subdomain}.key`);
+    await fs.rm(keyPath, { force: true });
+  } catch {
+    // best effort
+  }
+}

@@ -16,9 +16,22 @@ export interface Container {
   s3AccessKey?: string;
   s3SecretKey?: string;
   s3Bucket?: string;
-  customDomains?: Array<{ id: string; domain: string }>;
+  sshKey?: string;
+  guestSshKey?: string;
+  dbUsername?: string;
+  volumePath?: string;
+  owner?: boolean;
+  customDomains?: DomainView[];
   alwaysOn?: boolean;
   createdAt?: string;
+}
+
+export interface DomainView {
+  id: string;
+  domain: string;
+  disabled?: boolean;
+  status?: string;
+  lastError?: string;
 }
 
 export interface Account {
@@ -130,6 +143,27 @@ export class BasicDeployApi {
       { headers: await this.headers() },
     );
     return res?.logs ?? "";
+  }
+
+  async listDomains(id: string): Promise<DomainView[]> {
+    return this.request<DomainView[]>(`/containers/${id}/domains`, {
+      headers: await this.headers(),
+    });
+  }
+
+  async addDomain(id: string, domain: string): Promise<DomainView> {
+    return this.request<DomainView>(`/containers/${id}/domains`, {
+      method: "POST",
+      headers: await this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ domain }),
+    });
+  }
+
+  async removeDomain(id: string, domainId: string): Promise<void> {
+    await this.request<void>(`/containers/${id}/domains/${domainId}`, {
+      method: "DELETE",
+      headers: await this.headers(),
+    });
   }
 
   // Deploy a gzipped tarball. Optional containerId targets an existing box;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Remote SSH into a container (managed SSH config include + per-container key, opens `/workspace`).
+- Live log streaming (polled tail in an Output channel).
+- Data view: per-container Postgres and object-storage connection details with copy actions.
+- Domains view: list, add, and remove custom domains per container.
+- Clean up the SSH host entry and key when a container is deleted.
+
 ## 0.1.0
 
 Initial scaffold.

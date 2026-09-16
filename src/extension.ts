@@ -2,6 +2,10 @@ import * as vscode from "vscode";
 import { BasicDeployApi } from "./api";
 import { AUTH_PROVIDER_ID, BasicDeployAuthProvider, getSession } from "./auth";
 import { ContainerItem, ContainersProvider } from "./containersView";
+import { DataNode, DataProvider } from "./dataView";
+import { DomainNode, DomainsProvider } from "./domainsView";
+import { LogStreamer } from "./logStream";
+import { connectSsh, forgetSshHost } from "./ssh";
 import { deployWorkspace, pickWorkspaceFolder } from "./deploy";
 import { registerTools } from "./tools";
 import { registerChatParticipant } from "./chat";
@@ -27,39 +31,55 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const containers = new ContainersProvider(api);
-  const tree = vscode.window.createTreeView("basicdeploy.containers", {
-    treeDataProvider: containers,
-  });
-  context.subscriptions.push(tree);
+  const data = new DataProvider(api);
+  const domains = new DomainsProvider(api);
+  const logs = new LogStreamer(api);
+  context.subscriptions.push(logs);
 
-  // Refresh the tree whenever the account changes.
+  const refreshAll = () => {
+    containers.refresh();
+    data.refresh();
+    domains.refresh();
+  };
+
+  context.subscriptions.push(
+    vscode.window.createTreeView("basicdeploy.containers", { treeDataProvider: containers }),
+    vscode.window.createTreeView("basicdeploy.data", { treeDataProvider: data }),
+    vscode.window.createTreeView("basicdeploy.domains", { treeDataProvider: domains }),
+  );
+
+  // Refresh every view whenever the account changes.
   context.subscriptions.push(
     vscode.authentication.onDidChangeSessions((e) => {
       if (e.provider.id === AUTH_PROVIDER_ID) {
-        containers.refresh();
+        refreshAll();
       }
     }),
   );
 
   registerTools(context, api);
   registerChatParticipant(context, api);
-  registerCommands(context, api, containers);
+  registerCommands(context, api, containers, data, domains, logs, refreshAll);
 
-  // Prime the view if already signed in.
-  containers.refresh();
+  // Prime the views if already signed in.
+  refreshAll();
 }
 
 function registerCommands(
   context: vscode.ExtensionContext,
   api: BasicDeployApi,
   containers: ContainersProvider,
+  data: DataProvider,
+  domains: DomainsProvider,
+  logs: LogStreamer,
+  refreshAll: () => void,
 ): void {
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
   reg("basicdeploy.signIn", async () => {
     await getSession(true);
-    containers.refresh();
+    refreshAll();
   });
 
   reg("basicdeploy.signOut", async () => {
@@ -77,6 +97,8 @@ function registerCommands(
   });
 
   reg("basicdeploy.refresh", () => containers.refresh());
+  reg("basicdeploy.refreshData", () => data.refresh());
+  reg("basicdeploy.refreshDomains", () => domains.refresh());
 
   reg("basicdeploy.createContainer", async () => {
     await withProgress("Creating container...", async () => {
@@ -84,7 +106,7 @@ function registerCommands(
       vscode.window.showInformationMessage(
         `Created ${c.subdomain} at https://${c.subdomain}.basicdeploy.com`,
       );
-      containers.refresh();
+      refreshAll();
     });
   });
 
@@ -128,7 +150,9 @@ function registerCommands(
     }
     await withProgress(`Deleting ${item.container.subdomain}...`, async () => {
       await api.deleteContainer(item.container.id);
-      containers.refresh();
+      logs.stop(item.container.id);
+      await forgetSshHost(context, item.container.subdomain);
+      refreshAll();
     });
   });
 
@@ -146,11 +170,80 @@ function registerCommands(
       return;
     }
     await withProgress(`Fetching logs for ${item.container.subdomain}...`, async () => {
-      const logs = await api.logs(item.container.id, 500);
+      const text = await api.logs(item.container.id, 500);
       output.clear();
       output.appendLine(`# logs: ${item.container.subdomain}`);
-      output.appendLine(logs || "(no logs)");
+      output.appendLine(text || "(no logs)");
       output.show(true);
+    });
+  });
+
+  reg("basicdeploy.streamLogs", (item?: ContainerItem) => {
+    if (!item) {
+      return;
+    }
+    logs.toggle(item.container);
+  });
+
+  reg("basicdeploy.openSsh", async (item?: ContainerItem) => {
+    if (!item) {
+      return;
+    }
+    const session = await getSession(true);
+    if (!session) {
+      return;
+    }
+    try {
+      await connectSsh(context, api, item.container);
+    } catch (err) {
+      vscode.window.showErrorMessage(`SSH failed: ${errorMessage(err)}`);
+    }
+  });
+
+  reg("basicdeploy.copyValue", async (node?: DataNode) => {
+    if (!node?.copyValue) {
+      return;
+    }
+    await vscode.env.clipboard.writeText(node.copyValue);
+    vscode.window.showInformationMessage("Copied to clipboard.");
+  });
+
+  reg("basicdeploy.addDomain", async (node?: DomainNode) => {
+    const container = node?.container;
+    if (!container) {
+      return;
+    }
+    const domain = await vscode.window.showInputBox({
+      title: `Add custom domain to ${container.subdomain}`,
+      prompt: "Domain name (for example app.example.com)",
+      ignoreFocusOut: true,
+      validateInput: (v) =>
+        /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(v.trim()) ? undefined : "Enter a valid domain.",
+    });
+    if (!domain) {
+      return;
+    }
+    await withProgress(`Adding ${domain}...`, async () => {
+      await api.addDomain(container.id, domain.trim());
+      domains.refresh();
+    });
+  });
+
+  reg("basicdeploy.removeDomain", async (node?: DomainNode) => {
+    if (!node?.container || !node.domain) {
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Remove domain ${node.domain.domain}?`,
+      { modal: true },
+      "Remove",
+    );
+    if (confirm !== "Remove") {
+      return;
+    }
+    await withProgress(`Removing ${node.domain.domain}...`, async () => {
+      await api.removeDomain(node.container!.id, node.domain!.id);
+      domains.refresh();
     });
   });
 }
