@@ -40,6 +40,38 @@ export interface Account {
   [key: string]: unknown;
 }
 
+export interface PlanInfo {
+  name: string;
+  displayName: string;
+  maxContainers: number;
+  effectiveMaxContainers: number;
+  maxMemoryBytes: number;
+  maxStorageBytes: number;
+  maxCustomDomains: number;
+  memorySizes?: number[];
+  priceMonthlyUsd?: number;
+  alwaysOnIncluded?: boolean;
+}
+export interface UsageInfo {
+  databaseBytes?: number | null;
+  diskBytes?: number | null;
+  storageLimitBytes?: number | null;
+  checkedAt?: string | null;
+}
+export interface Me {
+  id: string;
+  email: string;
+  plan: PlanInfo;
+  containerAddons: number;
+  alwaysOnUsed: number;
+  usage: UsageInfo;
+  overQuota?: boolean;
+  overQuotaReason?: string | null;
+  compedUntil?: string | null;
+  approved?: boolean;
+  suspended?: boolean;
+}
+
 export interface TableInfo {
   name: string;
   rowEstimate: number;
@@ -199,6 +231,11 @@ export class BasicDeployApi {
     }
     const text = await res.text();
     return (text ? JSON.parse(text) : {}) as Account;
+  }
+
+  // The signed-in account with plan limits and current usage (GET /auth/me).
+  async me(): Promise<Me> {
+    return this.request<Me>("/auth/me", { headers: await this.headers() });
   }
 
   async listContainers(): Promise<Container[]> {

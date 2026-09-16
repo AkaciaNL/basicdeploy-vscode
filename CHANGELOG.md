@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- New Account view (top of the BasicDeploy sidebar): plan and price, container usage vs limit, always-on slots used, storage used vs cap, database size, per-container memory limit, and custom-domain limit. Over-quota state is flagged in red.
+- Manage Plan and Billing button opens the billing page.
+- Confirmed all destructive actions (delete container, delete/purge topic, remove domain) prompt a modal Are-you-sure dialog.
+
+
 ## 0.6.1
 
 - Container rows now have inline hover buttons: Open URL, Wake or Sleep (whichever applies), Stream Logs, SSH, and Delete. Previously wake/sleep/delete were right-click only.

@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "publisher": "akacianl",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -67,6 +67,10 @@
     "views": {
       "basicdeploy": [
         {
+          "id": "basicdeploy.account",
+          "name": "Account"
+        },
+        {
           "id": "basicdeploy.containers",
           "name": "Containers"
         },
@@ -98,6 +102,11 @@
       ]
     },
     "viewsWelcome": [
+      {
+        "view": "basicdeploy.account",
+        "when": "!basicdeploy.signedIn",
+        "contents": "[Sign in to BasicDeploy](command:basicdeploy.signIn) to see your plan and limits."
+      },
       {
         "view": "basicdeploy.containers",
         "when": "!basicdeploy.signedIn",
@@ -142,6 +151,8 @@
     "commands": [
       { "command": "basicdeploy.signIn", "title": "BasicDeploy: Sign In" },
       { "command": "basicdeploy.signOut", "title": "BasicDeploy: Sign Out" },
+      { "command": "basicdeploy.refreshAccount", "title": "BasicDeploy: Refresh Account", "icon": "$(refresh)" },
+      { "command": "basicdeploy.managePlan", "title": "BasicDeploy: Manage Plan and Billing", "icon": "$(link-external)" },
       { "command": "basicdeploy.refresh", "title": "BasicDeploy: Refresh", "icon": "$(refresh)" },
       { "command": "basicdeploy.deployWorkspace", "title": "BasicDeploy: Deploy Current Workspace", "icon": "$(rocket)" },
       { "command": "basicdeploy.createContainer", "title": "BasicDeploy: New Container", "icon": "$(add)" },
@@ -179,6 +190,8 @@
     ],
     "menus": {
       "view/title": [
+        { "command": "basicdeploy.managePlan", "when": "view == basicdeploy.account", "group": "navigation@1" },
+        { "command": "basicdeploy.refreshAccount", "when": "view == basicdeploy.account", "group": "navigation@2" },
         { "command": "basicdeploy.deployWorkspace", "when": "view == basicdeploy.containers", "group": "navigation@1" },
         { "command": "basicdeploy.createContainer", "when": "view == basicdeploy.containers", "group": "navigation@2" },
         { "command": "basicdeploy.refresh", "when": "view == basicdeploy.containers", "group": "navigation@3" },

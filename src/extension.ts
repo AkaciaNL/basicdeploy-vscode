@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BasicDeployApi } from "./api";
 import { AUTH_PROVIDER_ID, BasicDeployAuthProvider, getSession } from "./auth";
 import { ContainerItem, ContainersProvider } from "./containersView";
+import { AccountProvider } from "./accountView";
 import { DatabaseProvider } from "./databaseView";
 import { StorageProvider, openObject } from "./storageView";
 import { KafkaProvider, TopicNode } from "./kafkaView";
@@ -37,6 +38,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  const account = new AccountProvider(api);
   const containers = new ContainersProvider(api);
   const database = new DatabaseProvider(api);
   const storage = new StorageProvider(api);
@@ -60,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): void {
       .then((key) =>
         vscode.commands.executeCommand("setContext", "basicdeploy.signedIn", !!key),
       );
+    account.refresh();
     containers.refresh();
     database.refresh();
     storage.refresh();
@@ -69,6 +72,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
+    vscode.window.createTreeView("basicdeploy.account", { treeDataProvider: account }),
     vscode.window.createTreeView("basicdeploy.containers", { treeDataProvider: containers }),
     vscode.window.createTreeView("basicdeploy.database", { treeDataProvider: database }),
     vscode.window.createTreeView("basicdeploy.storage", { treeDataProvider: storage }),
@@ -90,6 +94,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerChatParticipant(context, api);
   registerCommands(context, api, {
     auth,
+    account,
     containers,
     database,
     storage,
@@ -108,6 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 interface Providers {
   auth: BasicDeployAuthProvider;
+  account: AccountProvider;
   containers: ContainersProvider;
   database: DatabaseProvider;
   storage: StorageProvider;
@@ -125,7 +131,7 @@ function registerCommands(
   api: BasicDeployApi,
   p: Providers,
 ): void {
-  const { auth, containers, database, storage, kafka, domains, support, rowsDoc, ticketDoc, logs, refreshAll } = p;
+  const { auth, account, containers, database, storage, kafka, domains, support, rowsDoc, ticketDoc, logs, refreshAll } = p;
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
@@ -145,6 +151,10 @@ function registerCommands(
   });
 
   reg("basicdeploy.refresh", () => containers.refresh());
+  reg("basicdeploy.refreshAccount", () => account.refresh());
+  reg("basicdeploy.managePlan", async () => {
+    await vscode.env.openExternal(vscode.Uri.parse("https://basicdeploy.com/billing"));
+  });
   reg("basicdeploy.refreshDatabase", () => database.refresh());
   reg("basicdeploy.refreshStorage", () => storage.refresh());
   reg("basicdeploy.refreshKafka", () => kafka.refresh());
