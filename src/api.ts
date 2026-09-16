@@ -123,6 +123,23 @@ export interface TicketDetail {
   userEmail?: string;
   messages: MessageView[];
 }
+export interface UploadImage {
+  name: string;
+  contentType: string;
+  bytes: Uint8Array;
+}
+
+// Append image parts to a multipart form under the "images" field the support
+// endpoints expect.
+function appendImages(form: FormData, images: UploadImage[]): void {
+  for (const img of images) {
+    form.append(
+      "images",
+      new Blob([Buffer.from(img.bytes)], { type: img.contentType || "application/octet-stream" }),
+      img.name,
+    );
+  }
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -311,12 +328,13 @@ export class BasicDeployApi {
     return this.request<TicketDetail>(`/support/${number}`, { headers: await this.headers() });
   }
 
-  async createTicket(subject: string, body: string): Promise<TicketDetail> {
+  async createTicket(subject: string, body: string, images: UploadImage[] = []): Promise<TicketDetail> {
     const form = new FormData();
     form.append("subject", subject);
     if (body) {
       form.append("body", body);
     }
+    appendImages(form, images);
     return this.request<TicketDetail>("/support", {
       method: "POST",
       headers: await this.headers(),
@@ -324,16 +342,32 @@ export class BasicDeployApi {
     });
   }
 
-  async replyTicket(number: number, body: string): Promise<TicketDetail> {
+  async replyTicket(number: number, body: string, images: UploadImage[] = []): Promise<TicketDetail> {
     const form = new FormData();
     if (body) {
       form.append("body", body);
     }
+    appendImages(form, images);
     return this.request<TicketDetail>(`/support/${number}/messages`, {
       method: "POST",
       headers: await this.headers(),
       body: form,
     });
+  }
+
+  // Stream one support-ticket attachment (GET /support/attachments/{id}).
+  async getAttachment(id: string): Promise<ObjectBytes> {
+    const res = await fetch(`${this.baseUrl()}/support/attachments/${encodeURIComponent(id)}`, {
+      headers: await this.headers(),
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, `Attachment read failed (${res.status}).`);
+    }
+    const buf = await res.arrayBuffer();
+    return {
+      bytes: new Uint8Array(buf),
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+    };
   }
 
   async setTicketStatus(number: number, closed: boolean): Promise<void> {

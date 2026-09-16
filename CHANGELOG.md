@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- Replaced the row browser and ticket thread webviews with native read-only editor documents (bd-rows and bd-ticket schemes): tables render as aligned text, tickets as markdown. Paging and ticket actions live in the editor title bar.
+- Support ticket attachments: attach images when creating a ticket or replying, and open a ticket's attachments from the editor.
+
+
 ## 0.4.0
 
 - Support view: list your support tickets, open a ticket thread in the editor, reply, and close or reopen it. New Support Ticket action creates one (subject + body).

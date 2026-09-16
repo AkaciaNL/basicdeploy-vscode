@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "akacianl",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -130,8 +130,12 @@
       { "command": "basicdeploy.newTicket", "title": "BasicDeploy: New Support Ticket", "icon": "$(add)" },
       { "command": "basicdeploy.refreshSupport", "title": "BasicDeploy: Refresh Support", "icon": "$(refresh)" },
       { "command": "basicdeploy.openTicket", "title": "BasicDeploy: Open Support Ticket" },
+      { "command": "basicdeploy.replyTicket", "title": "BasicDeploy: Reply to Ticket", "icon": "$(reply)" },
       { "command": "basicdeploy.closeTicket", "title": "BasicDeploy: Close Ticket", "icon": "$(check)" },
-      { "command": "basicdeploy.reopenTicket", "title": "BasicDeploy: Reopen Ticket", "icon": "$(history)" }
+      { "command": "basicdeploy.reopenTicket", "title": "BasicDeploy: Reopen Ticket", "icon": "$(history)" },
+      { "command": "basicdeploy.openAttachment", "title": "BasicDeploy: Open Ticket Attachment", "icon": "$(file-media)" },
+      { "command": "basicdeploy.tableNextPage", "title": "BasicDeploy: Table Next Page", "icon": "$(arrow-right)" },
+      { "command": "basicdeploy.tablePrevPage", "title": "BasicDeploy: Table Previous Page", "icon": "$(arrow-left)" }
     ],
     "menus": {
       "view/title": [
@@ -161,8 +165,17 @@
         { "command": "basicdeploy.removeDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainItem", "group": "inline@1" },
         { "command": "basicdeploy.purgeTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "1_topic@1" },
         { "command": "basicdeploy.deleteTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "9_danger" },
-        { "command": "basicdeploy.closeTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@1" },
+        { "command": "basicdeploy.replyTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@1" },
+        { "command": "basicdeploy.closeTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@2" },
         { "command": "basicdeploy.reopenTicket", "when": "view == basicdeploy.support && viewItem == bdTicketClosed", "group": "inline@1" }
+      ],
+      "editor/title": [
+        { "command": "basicdeploy.tablePrevPage", "when": "resourceScheme == bd-rows", "group": "navigation@1" },
+        { "command": "basicdeploy.tableNextPage", "when": "resourceScheme == bd-rows", "group": "navigation@2" },
+        { "command": "basicdeploy.replyTicket", "when": "resourceScheme == bd-ticket", "group": "navigation@1" },
+        { "command": "basicdeploy.openAttachment", "when": "resourceScheme == bd-ticket", "group": "navigation@2" },
+        { "command": "basicdeploy.closeTicket", "when": "resourceScheme == bd-ticket", "group": "navigation@3" },
+        { "command": "basicdeploy.reopenTicket", "when": "resourceScheme == bd-ticket", "group": "navigation@4" }
       ]
     },
     "languageModelTools": [

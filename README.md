@@ -27,7 +27,7 @@ A first-class VS Code extension for [BasicDeploy](https://basicdeploy.com). Ship
 - **Storage view.** Browse your object-storage bucket and open any object (text, image, or PDF) right in the editor.
 - **Kafka view.** See your topics with partitions and usage; create, purge, or delete them.
 - **Domains view.** List, add, and remove custom domains per container.
-- **Support view.** Open a support ticket, read the thread, reply, and close or reopen it without leaving the editor.
+- **Support view.** Create a support ticket (with image attachments), read the thread as a document, reply, open attachments, and close or reopen, all in native editor tabs (no webviews).
 - **Live log streaming.** Tail a container's logs in an Output channel that refreshes every couple of seconds.
 - **Remote SSH.** Open a container in a Remote-SSH window (or its `/workspace` folder) for full cloud development.
 
@@ -59,7 +59,7 @@ It also contributes an **`@basicdeploy` chat participant**. In the Chat view, ty
 | Storage | List bucket objects; open an object in the editor. |
 | Kafka | List topics with usage; create, purge, delete. |
 | Domains | List, add, and remove custom domains. |
-| Support | Create a support ticket, read and reply to the thread, close or reopen. |
+| Support | Create a ticket (with attachments), read/reply to the thread, open attachments, close or reopen. |
 
 ## Remote SSH
 

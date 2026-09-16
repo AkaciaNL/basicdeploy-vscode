@@ -5,11 +5,13 @@ import { ContainerItem, ContainersProvider } from "./containersView";
 import { DatabaseProvider } from "./databaseView";
 import { StorageProvider, openObject } from "./storageView";
 import { KafkaProvider, TopicNode } from "./kafkaView";
-import { RowsPanel } from "./rowsPanel";
 import { DomainNode, DomainsProvider } from "./domainsView";
 import { SupportProvider, TicketNode } from "./supportView";
-import { SupportPanel } from "./supportPanel";
+import { RowsDocProvider, TicketDocProvider, ROWS_SCHEME, TICKET_SCHEME } from "./docs";
 import { LogStreamer } from "./logStream";
+import type { UploadImage } from "./api";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { connectSsh, forgetSshHost } from "./ssh";
 import { deployWorkspace, pickWorkspaceFolder } from "./deploy";
 import { registerTools } from "./tools";
@@ -41,8 +43,15 @@ export function activate(context: vscode.ExtensionContext): void {
   const kafka = new KafkaProvider(api);
   const domains = new DomainsProvider(api);
   const support = new SupportProvider(api);
+  const rowsDoc = new RowsDocProvider(api);
+  const ticketDoc = new TicketDocProvider(api);
   const logs = new LogStreamer(api);
   context.subscriptions.push(logs);
+
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(ROWS_SCHEME, rowsDoc),
+    vscode.workspace.registerTextDocumentContentProvider(TICKET_SCHEME, ticketDoc),
+  );
 
   const refreshAll = () => {
     containers.refresh();
@@ -80,6 +89,8 @@ export function activate(context: vscode.ExtensionContext): void {
     kafka,
     domains,
     support,
+    rowsDoc,
+    ticketDoc,
     logs,
     refreshAll,
   });
@@ -95,6 +106,8 @@ interface Providers {
   kafka: KafkaProvider;
   domains: DomainsProvider;
   support: SupportProvider;
+  rowsDoc: RowsDocProvider;
+  ticketDoc: TicketDocProvider;
   logs: LogStreamer;
   refreshAll: () => void;
 }
@@ -104,7 +117,7 @@ function registerCommands(
   api: BasicDeployApi,
   p: Providers,
 ): void {
-  const { containers, database, storage, kafka, domains, support, logs, refreshAll } = p;
+  const { containers, database, storage, kafka, domains, support, rowsDoc, ticketDoc, logs, refreshAll } = p;
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
@@ -136,7 +149,7 @@ function registerCommands(
 
   reg("basicdeploy.openTicket", (number?: number) => {
     if (typeof number === "number") {
-      SupportPanel.open(api, () => support.refresh(), number);
+      void ticketDoc.open(number);
     }
   });
 
@@ -162,31 +175,101 @@ function registerCommands(
     if (body === undefined) {
       return;
     }
+    const images = await pickImages("Attach images to the ticket (optional)");
     await withProgress("Creating support ticket...", async () => {
-      const ticket = await api.createTicket(subject.trim(), body.trim());
+      const ticket = await api.createTicket(subject.trim(), body.trim(), images);
       support.refresh();
       vscode.window.showInformationMessage(`Created ticket #${ticket.number}.`);
-      SupportPanel.open(api, () => support.refresh(), ticket.number);
+      await ticketDoc.open(ticket.number);
     });
   });
 
-  reg("basicdeploy.closeTicket", async (node?: TicketNode) => {
-    if (!node?.ticket) {
+  // Resolve the target ticket from a tree node, an explicit number, or the
+  // active ticket document.
+  const resolveTicket = (arg?: TicketNode | number): number | undefined => {
+    if (typeof arg === "number") {
+      return arg;
+    }
+    if (arg?.ticket) {
+      return arg.ticket.number;
+    }
+    return ticketDoc.activeNumber();
+  };
+
+  reg("basicdeploy.replyTicket", async (arg?: TicketNode | number) => {
+    const number = resolveTicket(arg);
+    if (number === undefined) {
       return;
     }
-    await withProgress(`Closing ticket #${node.ticket.number}...`, async () => {
-      await api.setTicketStatus(node.ticket!.number, true);
+    const body = await vscode.window.showInputBox({
+      title: `Reply to ticket #${number}`,
+      prompt: "Your reply",
+      ignoreFocusOut: true,
+    });
+    if (body === undefined) {
+      return;
+    }
+    const images = await pickImages("Attach images to the reply (optional)");
+    if (!body.trim() && images.length === 0) {
+      return;
+    }
+    await withProgress(`Replying to #${number}...`, async () => {
+      await api.replyTicket(number, body.trim(), images);
+      ticketDoc.refresh(number);
       support.refresh();
     });
   });
 
-  reg("basicdeploy.reopenTicket", async (node?: TicketNode) => {
-    if (!node?.ticket) {
+  reg("basicdeploy.closeTicket", async (arg?: TicketNode | number) => {
+    const number = resolveTicket(arg);
+    if (number === undefined) {
       return;
     }
-    await withProgress(`Reopening ticket #${node.ticket.number}...`, async () => {
-      await api.setTicketStatus(node.ticket!.number, false);
+    await withProgress(`Closing ticket #${number}...`, async () => {
+      await api.setTicketStatus(number, true);
+      ticketDoc.refresh(number);
       support.refresh();
+    });
+  });
+
+  reg("basicdeploy.reopenTicket", async (arg?: TicketNode | number) => {
+    const number = resolveTicket(arg);
+    if (number === undefined) {
+      return;
+    }
+    await withProgress(`Reopening ticket #${number}...`, async () => {
+      await api.setTicketStatus(number, false);
+      ticketDoc.refresh(number);
+      support.refresh();
+    });
+  });
+
+  reg("basicdeploy.openAttachment", async () => {
+    const number = ticketDoc.activeNumber();
+    if (number === undefined) {
+      vscode.window.showInformationMessage("Open a support ticket first.");
+      return;
+    }
+    const detail = ticketDoc.cached(number) ?? (await api.getTicket(number));
+    const items = detail.messages
+      .flatMap((m) => m.attachments ?? [])
+      .map((a) => ({ label: a.filename, description: a.contentType, id: a.id }));
+    if (items.length === 0) {
+      vscode.window.showInformationMessage("This ticket has no attachments.");
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: "Open attachment" });
+    if (!pick) {
+      return;
+    }
+    await withProgress(`Opening ${pick.label}...`, async () => {
+      const { bytes } = await api.getAttachment(pick.id);
+      const dir = path.join(context.globalStorageUri.fsPath, "attachments");
+      await fs.mkdir(dir, { recursive: true });
+      const safe = pick.label.replace(/[^A-Za-z0-9._-]/g, "_") || "attachment";
+      const file = path.join(dir, safe);
+      await fs.writeFile(file, bytes);
+      await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(file));
     });
   });
 
@@ -195,9 +278,11 @@ function registerCommands(
 
   reg("basicdeploy.openTable", (table?: string) => {
     if (table) {
-      RowsPanel.open(api, table);
+      void rowsDoc.open(table);
     }
   });
+  reg("basicdeploy.tableNextPage", () => rowsDoc.page(1));
+  reg("basicdeploy.tablePrevPage", () => rowsDoc.page(-1));
 
   reg("basicdeploy.openObject", async (key?: string) => {
     if (!key) {
@@ -460,6 +545,44 @@ async function withProgress(title: string, fn: () => Promise<void>): Promise<voi
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+// Ask the user whether to attach image files, then read the chosen files. The
+// backend caps count and size and rejects non-images; we just gather them.
+const IMAGE_CONTENT_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+async function pickImages(prompt: string): Promise<UploadImage[]> {
+  const attach = "Attach images";
+  const choice = await vscode.window.showInformationMessage(prompt, attach, "No attachments");
+  if (choice !== attach) {
+    return [];
+  }
+  const uris = await vscode.window.showOpenDialog({
+    canSelectMany: true,
+    openLabel: "Attach",
+    filters: { Images: ["png", "jpg", "jpeg", "gif", "webp"] },
+  });
+  if (!uris || uris.length === 0) {
+    return [];
+  }
+  const images: UploadImage[] = [];
+  for (const uri of uris) {
+    const bytes = await fs.readFile(uri.fsPath);
+    const name = path.basename(uri.fsPath);
+    const ext = path.extname(name).toLowerCase();
+    images.push({
+      name,
+      contentType: IMAGE_CONTENT_TYPES[ext] ?? "application/octet-stream",
+      bytes: new Uint8Array(bytes),
+    });
+  }
+  return images;
 }
 
 export function deactivate(): void {
