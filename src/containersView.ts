@@ -8,7 +8,10 @@ export class ContainerItem extends vscode.TreeItem {
     super(container.subdomain || container.id, vscode.TreeItemCollapsibleState.None);
     const status = (container.status || "unknown").toLowerCase();
     this.description = status;
-    this.contextValue = "bdContainer";
+    // Status-specific context so the tree offers Wake only when asleep and
+    // Sleep only when running. Common actions match on the bdContainer prefix.
+    const asleep = status.includes("sleep") || status.includes("stop");
+    this.contextValue = asleep ? "bdContainerSleeping" : "bdContainerRunning";
     this.tooltip = new vscode.MarkdownString(
       [
         `**${container.subdomain}**`,

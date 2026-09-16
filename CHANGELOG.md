@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- Container rows now have inline hover buttons: Open URL, Wake or Sleep (whichever applies), Stream Logs, SSH, and Delete. Previously wake/sleep/delete were right-click only.
+- Wake shows only on a sleeping container and Sleep only on a running one (status-gated), instead of both always showing.
+- Removed a duplicate SSH entry in the container context menu.
+
+
 ## 0.6.0
 
 - Reduced sidebar density: Database, Storage, Kafka, Domains, and Support views now start collapsed; Containers stays expanded.
