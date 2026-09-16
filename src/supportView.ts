@@ -47,7 +47,8 @@ export class SupportProvider implements vscode.TreeDataProvider<TicketNode> {
       return [];
     }
     if (tickets.length === 0) {
-      return [new TicketNode()];
+      // Empty: let the view's welcome content ("New support ticket") show.
+      return [];
     }
     return tickets
       .slice()

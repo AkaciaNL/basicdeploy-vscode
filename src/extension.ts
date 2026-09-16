@@ -54,6 +54,12 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const refreshAll = () => {
+    // Drive the viewsWelcome sign-in prompts off a context key.
+    void auth
+      .currentKey()
+      .then((key) =>
+        vscode.commands.executeCommand("setContext", "basicdeploy.signedIn", !!key),
+      );
     containers.refresh();
     database.refresh();
     storage.refresh();

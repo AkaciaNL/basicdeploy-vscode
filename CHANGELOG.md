@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- Signed-out UX: every view now shows a "Sign in to BasicDeploy" prompt when there is no key, driven by a basicdeploy.signedIn context key, instead of rendering empty.
+- Containers view no longer tells a signed-in user to sign in when they simply have no containers; it offers Deploy / New container instead. Support view offers New ticket when empty.
+
+
 ## 0.5.1
 
 - Fixed Sign Out: it now actually clears the stored API key (was a no-op that only pointed at the Accounts menu).
