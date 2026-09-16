@@ -1,0 +1,180 @@
+{
+  "name": "basicdeploy",
+  "displayName": "BasicDeploy",
+  "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
+  "version": "0.1.0",
+  "publisher": "basicdeploy",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AkaciaNL/basicdeploy-vscode.git"
+  },
+  "homepage": "https://basicdeploy.com",
+  "bugs": {
+    "url": "https://github.com/AkaciaNL/basicdeploy-vscode/issues"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Azure",
+    "AI",
+    "Chat",
+    "Other"
+  ],
+  "keywords": [
+    "deploy",
+    "hosting",
+    "paas",
+    "copilot",
+    "mcp",
+    "agent"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "authentication": [
+      {
+        "id": "basicdeploy",
+        "label": "BasicDeploy"
+      }
+    ],
+    "configuration": {
+      "title": "BasicDeploy",
+      "properties": {
+        "basicdeploy.apiUrl": {
+          "type": "string",
+          "default": "https://basicdeploy.com/api",
+          "description": "Base URL of the BasicDeploy REST API."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "basicdeploy",
+          "title": "BasicDeploy",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "basicdeploy": [
+        {
+          "id": "basicdeploy.containers",
+          "name": "Containers"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "basicdeploy.containers",
+        "contents": "Sign in to see and deploy your BasicDeploy containers.\n[Sign in to BasicDeploy](command:basicdeploy.signIn)"
+      }
+    ],
+    "commands": [
+      { "command": "basicdeploy.signIn", "title": "BasicDeploy: Sign In" },
+      { "command": "basicdeploy.signOut", "title": "BasicDeploy: Sign Out" },
+      { "command": "basicdeploy.refresh", "title": "BasicDeploy: Refresh", "icon": "$(refresh)" },
+      { "command": "basicdeploy.deployWorkspace", "title": "BasicDeploy: Deploy Current Workspace", "icon": "$(rocket)" },
+      { "command": "basicdeploy.createContainer", "title": "BasicDeploy: New Container", "icon": "$(add)" },
+      { "command": "basicdeploy.wake", "title": "BasicDeploy: Wake Container" },
+      { "command": "basicdeploy.sleep", "title": "BasicDeploy: Sleep Container" },
+      { "command": "basicdeploy.delete", "title": "BasicDeploy: Delete Container" },
+      { "command": "basicdeploy.openUrl", "title": "BasicDeploy: Open Public URL", "icon": "$(globe)" },
+      { "command": "basicdeploy.viewLogs", "title": "BasicDeploy: View Logs", "icon": "$(output)" },
+      { "command": "basicdeploy.deployToContainer", "title": "BasicDeploy: Deploy Workspace Into This Container" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "basicdeploy.deployWorkspace", "when": "view == basicdeploy.containers", "group": "navigation@1" },
+        { "command": "basicdeploy.createContainer", "when": "view == basicdeploy.containers", "group": "navigation@2" },
+        { "command": "basicdeploy.refresh", "when": "view == basicdeploy.containers", "group": "navigation@3" }
+      ],
+      "view/item/context": [
+        { "command": "basicdeploy.openUrl", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "inline@1" },
+        { "command": "basicdeploy.viewLogs", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "inline@2" },
+        { "command": "basicdeploy.deployToContainer", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "1_deploy" },
+        { "command": "basicdeploy.wake", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "2_power@1" },
+        { "command": "basicdeploy.sleep", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "2_power@2" },
+        { "command": "basicdeploy.delete", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "9_danger" }
+      ]
+    },
+    "languageModelTools": [
+      {
+        "name": "basicdeploy_list_containers",
+        "displayName": "List BasicDeploy containers",
+        "modelDescription": "List the signed-in user's BasicDeploy containers with their status and public URL.",
+        "toolReferenceName": "bdContainers",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(server)",
+        "tags": ["basicdeploy"],
+        "inputSchema": { "type": "object", "properties": {} }
+      },
+      {
+        "name": "basicdeploy_deploy_workspace",
+        "displayName": "Deploy workspace to BasicDeploy",
+        "modelDescription": "Package the current VS Code workspace folder and deploy it to BasicDeploy. Optionally deploy into an existing container by its subdomain; otherwise a new container is created. Returns the container's public URL.",
+        "tags": ["basicdeploy"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "subdomain": {
+              "type": "string",
+              "description": "Optional subdomain of an existing container to deploy into. Omit to create a new container."
+            }
+          }
+        }
+      },
+      {
+        "name": "basicdeploy_logs",
+        "displayName": "Read BasicDeploy container logs",
+        "modelDescription": "Read the recent logs of a BasicDeploy container by its subdomain, to diagnose why an app is failing.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "bdLogs",
+        "icon": "$(output)",
+        "tags": ["basicdeploy"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "subdomain": { "type": "string", "description": "Subdomain of the container." },
+            "tail": { "type": "number", "description": "Number of trailing log lines (default 200)." }
+          },
+          "required": ["subdomain"]
+        }
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "basicdeploy.chat",
+        "name": "basicdeploy",
+        "fullName": "BasicDeploy",
+        "description": "Deploy and manage your BasicDeploy apps and containers",
+        "isSticky": true,
+        "commands": [
+          { "name": "deploy", "description": "Deploy the current workspace" },
+          { "name": "logs", "description": "Show a container's recent logs" },
+          { "name": "new", "description": "Create a new container" },
+          { "name": "list", "description": "List your containers" }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "tsc --noEmit -p ./"
+  },
+  "dependencies": {
+    "tar": "^7.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.95.0",
+    "@types/tar": "^6.1.13",
+    "typescript": "^5.6.0"
+  }
+}

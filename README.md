@@ -1,0 +1,42 @@
+# BasicDeploy for VS Code
+
+Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an `@basicdeploy` chat participant let the agent build, deploy and debug for you.
+
+## Features
+
+- **Sign in with a BasicDeploy API key.** A native VS Code account entry, stored in SecretStorage.
+- **Containers view.** See every container with its status and public URL. Create, wake, sleep, delete, open the URL, and read logs from the activity bar.
+- **One-click deploy.** `BasicDeploy: Deploy Current Workspace` packages the open folder (skipping `node_modules`, `.git`, build output) and ships it. Deploy into a new container or an existing one.
+- **GitHub Copilot tools.** `basicdeploy_list_containers`, `basicdeploy_deploy_workspace`, and `basicdeploy_logs` are exposed as Language Model Tools, so Copilot agent mode can deploy and debug on your behalf.
+- **`@basicdeploy` chat participant.** In the Chat view, type `@basicdeploy` then `/deploy`, `/logs <subdomain>`, `/new`, or `/list`.
+
+## Getting started
+
+1. Install the extension.
+2. Run **BasicDeploy: Sign In** (or open the BasicDeploy view and click sign in).
+3. Paste an API key from your [account settings](https://basicdeploy.com/settings).
+4. Open a project folder and run **BasicDeploy: Deploy Current Workspace**.
+
+## Configuration
+
+- `basicdeploy.apiUrl` (default `https://basicdeploy.com/api`) base URL of the REST API. Point it at a self-hosted instance if needed.
+
+## Building from source
+
+```bash
+npm install
+npm run compile
+```
+
+Press `F5` in VS Code to launch an Extension Development Host.
+
+## Roadmap
+
+- Remote-SSH into your container for cloud development.
+- Data views for Postgres, object storage, and Kafka.
+- Live log streaming.
+- Marketplace and Open VSX listings, plus the MCP server in the GitHub MCP Registry.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
