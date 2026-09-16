@@ -7,6 +7,8 @@ import { StorageProvider, openObject } from "./storageView";
 import { KafkaProvider, TopicNode } from "./kafkaView";
 import { RowsPanel } from "./rowsPanel";
 import { DomainNode, DomainsProvider } from "./domainsView";
+import { SupportProvider, TicketNode } from "./supportView";
+import { SupportPanel } from "./supportPanel";
 import { LogStreamer } from "./logStream";
 import { connectSsh, forgetSshHost } from "./ssh";
 import { deployWorkspace, pickWorkspaceFolder } from "./deploy";
@@ -38,6 +40,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const storage = new StorageProvider(api);
   const kafka = new KafkaProvider(api);
   const domains = new DomainsProvider(api);
+  const support = new SupportProvider(api);
   const logs = new LogStreamer(api);
   context.subscriptions.push(logs);
 
@@ -47,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
     storage.refresh();
     kafka.refresh();
     domains.refresh();
+    support.refresh();
   };
 
   context.subscriptions.push(
@@ -55,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.createTreeView("basicdeploy.storage", { treeDataProvider: storage }),
     vscode.window.createTreeView("basicdeploy.kafka", { treeDataProvider: kafka }),
     vscode.window.createTreeView("basicdeploy.domains", { treeDataProvider: domains }),
+    vscode.window.createTreeView("basicdeploy.support", { treeDataProvider: support }),
   );
 
   // Refresh every view whenever the account changes.
@@ -74,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
     storage,
     kafka,
     domains,
+    support,
     logs,
     refreshAll,
   });
@@ -88,6 +94,7 @@ interface Providers {
   storage: StorageProvider;
   kafka: KafkaProvider;
   domains: DomainsProvider;
+  support: SupportProvider;
   logs: LogStreamer;
   refreshAll: () => void;
 }
@@ -97,7 +104,7 @@ function registerCommands(
   api: BasicDeployApi,
   p: Providers,
 ): void {
-  const { containers, database, storage, kafka, domains, logs, refreshAll } = p;
+  const { containers, database, storage, kafka, domains, support, logs, refreshAll } = p;
   const reg = (id: string, fn: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
@@ -125,6 +132,63 @@ function registerCommands(
   reg("basicdeploy.refreshStorage", () => storage.refresh());
   reg("basicdeploy.refreshKafka", () => kafka.refresh());
   reg("basicdeploy.refreshDomains", () => domains.refresh());
+  reg("basicdeploy.refreshSupport", () => support.refresh());
+
+  reg("basicdeploy.openTicket", (number?: number) => {
+    if (typeof number === "number") {
+      SupportPanel.open(api, () => support.refresh(), number);
+    }
+  });
+
+  reg("basicdeploy.newTicket", async () => {
+    const session = await getSession(true);
+    if (!session) {
+      return;
+    }
+    const subject = await vscode.window.showInputBox({
+      title: "New support ticket",
+      prompt: "Subject",
+      ignoreFocusOut: true,
+      validateInput: (v) => (v.trim() ? undefined : "A subject is required."),
+    });
+    if (!subject) {
+      return;
+    }
+    const body = await vscode.window.showInputBox({
+      title: "New support ticket",
+      prompt: "Describe the issue (optional)",
+      ignoreFocusOut: true,
+    });
+    if (body === undefined) {
+      return;
+    }
+    await withProgress("Creating support ticket...", async () => {
+      const ticket = await api.createTicket(subject.trim(), body.trim());
+      support.refresh();
+      vscode.window.showInformationMessage(`Created ticket #${ticket.number}.`);
+      SupportPanel.open(api, () => support.refresh(), ticket.number);
+    });
+  });
+
+  reg("basicdeploy.closeTicket", async (node?: TicketNode) => {
+    if (!node?.ticket) {
+      return;
+    }
+    await withProgress(`Closing ticket #${node.ticket.number}...`, async () => {
+      await api.setTicketStatus(node.ticket!.number, true);
+      support.refresh();
+    });
+  });
+
+  reg("basicdeploy.reopenTicket", async (node?: TicketNode) => {
+    if (!node?.ticket) {
+      return;
+    }
+    await withProgress(`Reopening ticket #${node.ticket.number}...`, async () => {
+      await api.setTicketStatus(node.ticket!.number, false);
+      support.refresh();
+    });
+  });
 
   reg("basicdeploy.loadMoreTables", () => database.loadMore());
   reg("basicdeploy.loadMoreObjects", () => storage.loadMore());

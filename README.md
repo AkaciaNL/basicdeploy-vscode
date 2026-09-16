@@ -27,6 +27,7 @@ A first-class VS Code extension for [BasicDeploy](https://basicdeploy.com). Ship
 - **Storage view.** Browse your object-storage bucket and open any object (text, image, or PDF) right in the editor.
 - **Kafka view.** See your topics with partitions and usage; create, purge, or delete them.
 - **Domains view.** List, add, and remove custom domains per container.
+- **Support view.** Open a support ticket, read the thread, reply, and close or reopen it without leaving the editor.
 - **Live log streaming.** Tail a container's logs in an Output channel that refreshes every couple of seconds.
 - **Remote SSH.** Open a container in a Remote-SSH window (or its `/workspace` folder) for full cloud development.
 
@@ -58,6 +59,7 @@ It also contributes an **`@basicdeploy` chat participant**. In the Chat view, ty
 | Storage | List bucket objects; open an object in the editor. |
 | Kafka | List topics with usage; create, purge, delete. |
 | Domains | List, add, and remove custom domains. |
+| Support | Create a support ticket, read and reply to the thread, close or reopen. |
 
 ## Remote SSH
 
@@ -80,14 +82,30 @@ Ask Copilot (with the BasicDeploy tools enabled) or `@basicdeploy`:
 - "Show the last 100 log lines of `blue-fox`."
 - "List my containers and which ones are asleep."
 
-## Building from source
+## Building and testing from source
 
 ```bash
 npm install
 npm run compile
 ```
 
-Press `F5` in VS Code to launch an Extension Development Host.
+**Run it (F5).** Open this folder in VS Code and press `F5` (Run Extension). That
+compiles and launches a second VS Code window, the Extension Development Host,
+with the extension loaded. Sign in with an API key and try the views, deploy,
+and chat. `npm run watch` keeps recompiling while you iterate; use the Reload
+command in the dev host to pick up changes.
+
+**Package a VSIX and install it.** To test the packaged build the way a user
+would install it:
+
+```bash
+npm install -g @vscode/vsce
+vsce package                       # produces basicdeploy-<version>.vsix
+code --install-extension basicdeploy-*.vsix
+```
+
+**Point at another backend.** Set `basicdeploy.apiUrl` in Settings to test
+against staging or a local instance instead of https://basicdeploy.com/api.
 
 ## Roadmap
 

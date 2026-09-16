@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "akacianl",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -86,6 +86,10 @@
         {
           "id": "basicdeploy.domains",
           "name": "Domains"
+        },
+        {
+          "id": "basicdeploy.support",
+          "name": "Support"
         }
       ]
     },
@@ -122,7 +126,12 @@
       { "command": "basicdeploy.createTopic", "title": "BasicDeploy: New Kafka Topic", "icon": "$(add)" },
       { "command": "basicdeploy.purgeTopic", "title": "BasicDeploy: Purge Topic" },
       { "command": "basicdeploy.deleteTopic", "title": "BasicDeploy: Delete Topic", "icon": "$(trash)" },
-      { "command": "basicdeploy.copyConnectionInfo", "title": "BasicDeploy: Copy Connection Info", "icon": "$(key)" }
+      { "command": "basicdeploy.copyConnectionInfo", "title": "BasicDeploy: Copy Connection Info", "icon": "$(key)" },
+      { "command": "basicdeploy.newTicket", "title": "BasicDeploy: New Support Ticket", "icon": "$(add)" },
+      { "command": "basicdeploy.refreshSupport", "title": "BasicDeploy: Refresh Support", "icon": "$(refresh)" },
+      { "command": "basicdeploy.openTicket", "title": "BasicDeploy: Open Support Ticket" },
+      { "command": "basicdeploy.closeTicket", "title": "BasicDeploy: Close Ticket", "icon": "$(check)" },
+      { "command": "basicdeploy.reopenTicket", "title": "BasicDeploy: Reopen Ticket", "icon": "$(history)" }
     ],
     "menus": {
       "view/title": [
@@ -134,7 +143,9 @@
         { "command": "basicdeploy.refreshStorage", "when": "view == basicdeploy.storage", "group": "navigation@1" },
         { "command": "basicdeploy.createTopic", "when": "view == basicdeploy.kafka", "group": "navigation@1" },
         { "command": "basicdeploy.refreshKafka", "when": "view == basicdeploy.kafka", "group": "navigation@2" },
-        { "command": "basicdeploy.refreshDomains", "when": "view == basicdeploy.domains", "group": "navigation@1" }
+        { "command": "basicdeploy.refreshDomains", "when": "view == basicdeploy.domains", "group": "navigation@1" },
+        { "command": "basicdeploy.newTicket", "when": "view == basicdeploy.support", "group": "navigation@1" },
+        { "command": "basicdeploy.refreshSupport", "when": "view == basicdeploy.support", "group": "navigation@2" }
       ],
       "view/item/context": [
         { "command": "basicdeploy.openUrl", "when": "view == basicdeploy.containers && viewItem == bdContainer", "group": "inline@1" },
@@ -149,7 +160,9 @@
         { "command": "basicdeploy.addDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainContainer", "group": "inline@1" },
         { "command": "basicdeploy.removeDomain", "when": "view == basicdeploy.domains && viewItem == bdDomainItem", "group": "inline@1" },
         { "command": "basicdeploy.purgeTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "1_topic@1" },
-        { "command": "basicdeploy.deleteTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "9_danger" }
+        { "command": "basicdeploy.deleteTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "9_danger" },
+        { "command": "basicdeploy.closeTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@1" },
+        { "command": "basicdeploy.reopenTicket", "when": "view == basicdeploy.support && viewItem == bdTicketClosed", "group": "inline@1" }
       ]
     },
     "languageModelTools": [

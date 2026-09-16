@@ -99,6 +99,31 @@ export interface ObjectBytes {
   contentType: string;
 }
 
+export interface TicketSummary {
+  number: number;
+  subject: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  lastReplyBy?: string;
+}
+export interface MessageView {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: string;
+  attachments?: Array<{ id: string; filename: string; contentType: string }>;
+}
+export interface TicketDetail {
+  number: number;
+  subject: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  userEmail?: string;
+  messages: MessageView[];
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -273,6 +298,48 @@ export class BasicDeployApi {
       method: "DELETE",
       headers: await this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ name }),
+    });
+  }
+
+  // --- Support tickets ---
+
+  async listTickets(): Promise<TicketSummary[]> {
+    return this.request<TicketSummary[]>("/support", { headers: await this.headers() });
+  }
+
+  async getTicket(number: number): Promise<TicketDetail> {
+    return this.request<TicketDetail>(`/support/${number}`, { headers: await this.headers() });
+  }
+
+  async createTicket(subject: string, body: string): Promise<TicketDetail> {
+    const form = new FormData();
+    form.append("subject", subject);
+    if (body) {
+      form.append("body", body);
+    }
+    return this.request<TicketDetail>("/support", {
+      method: "POST",
+      headers: await this.headers(),
+      body: form,
+    });
+  }
+
+  async replyTicket(number: number, body: string): Promise<TicketDetail> {
+    const form = new FormData();
+    if (body) {
+      form.append("body", body);
+    }
+    return this.request<TicketDetail>(`/support/${number}/messages`, {
+      method: "POST",
+      headers: await this.headers(),
+      body: form,
+    });
+  }
+
+  async setTicketStatus(number: number, closed: boolean): Promise<void> {
+    await this.request<void>(`/support/${number}/${closed ? "close" : "reopen"}`, {
+      method: "POST",
+      headers: await this.headers(),
     });
   }
 

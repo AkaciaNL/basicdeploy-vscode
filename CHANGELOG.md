@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Support view: list your support tickets, open a ticket thread in the editor, reply, and close or reopen it. New Support Ticket action creates one (subject + body).
+- Publisher set to akacianl (extension id akacianl.basicdeploy).
+- Added .vscode launch + tasks so F5 runs the Extension Development Host out of the box.
+
+
 ## 0.3.0
 
 - Split the data surface into three views matching the web console: Database, Storage, Kafka.
