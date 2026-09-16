@@ -7,7 +7,7 @@
 A first-class VS Code extension for [BasicDeploy](https://basicdeploy.com). Ship the current workspace in one click, browse your containers, Postgres tables, object storage and Kafka topics, stream logs, open a public URL, and SSH straight into your box. It also exposes native [GitHub Copilot](https://code.visualstudio.com/docs/copilot/overview) tools and an `@basicdeploy` chat participant, so the agent can build, deploy and debug on BasicDeploy for you, right inside the Chat view. Every container comes with a PostgreSQL database, S3-compatible object storage, a Kafka broker, environment variables, and a public HTTPS URL, all provisioned automatically.
 
 - Site: https://basicdeploy.com
-- Marketplace: https://marketplace.visualstudio.com/items?itemName=basicdeploy.basicdeploy
+- Marketplace: https://marketplace.visualstudio.com/items?itemName=akacianl.basicdeploy
 - Docs: https://basicdeploy.com/docs
 - MCP server (any agent): https://github.com/AkaciaNL/basicdeploy-mcp
 
