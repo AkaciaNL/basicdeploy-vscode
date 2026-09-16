@@ -57,9 +57,11 @@ export class RowsDocProvider implements vscode.TextDocumentContentProvider {
 function renderRows(p: TablePreview): string {
   const start = p.total === 0 ? 0 : p.offset + 1;
   const end = Math.min(p.offset + p.rows.length, p.total);
+  const totalPages = Math.max(1, Math.ceil(p.total / Math.max(1, p.limit)));
+  const pageNo = Math.floor(p.offset / Math.max(1, p.limit)) + 1;
   const header =
-    `Table: ${p.table}   rows ${start}-${end} of ${p.total}\n` +
-    `Page with: BasicDeploy: Table Next Page / Table Previous Page (Command Palette)\n\n`;
+    `Table: ${p.table}   rows ${start}-${end} of ${p.total}   (page ${pageNo}/${totalPages})\n` +
+    `Page with the arrows in the editor title bar, or Alt+Left / Alt+Right.\n\n`;
 
   if (p.columns.length === 0) {
     return header + "(no columns)";

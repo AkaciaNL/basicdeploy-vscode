@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- Reduced sidebar density: Database, Storage, Kafka, Domains, and Support views now start collapsed; Containers stays expanded.
+- Table row browser paging is more discoverable: Alt+Left / Alt+Right shortcuts (plus the title-bar arrows), and the header now shows the current page number.
+
+
 ## 0.5.2
 
 - Signed-out UX: every view now shows a "Sign in to BasicDeploy" prompt when there is no key, driven by a basicdeploy.signedIn context key, instead of rendering empty.

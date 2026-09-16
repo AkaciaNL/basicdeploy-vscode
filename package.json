@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "akacianl",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -72,23 +72,28 @@
         },
         {
           "id": "basicdeploy.database",
-          "name": "Database"
+          "name": "Database",
+          "visibility": "collapsed"
         },
         {
           "id": "basicdeploy.storage",
-          "name": "Storage"
+          "name": "Storage",
+          "visibility": "collapsed"
         },
         {
           "id": "basicdeploy.kafka",
-          "name": "Kafka"
+          "name": "Kafka",
+          "visibility": "collapsed"
         },
         {
           "id": "basicdeploy.domains",
-          "name": "Domains"
+          "name": "Domains",
+          "visibility": "collapsed"
         },
         {
           "id": "basicdeploy.support",
-          "name": "Support"
+          "name": "Support",
+          "visibility": "collapsed"
         }
       ]
     },
@@ -213,6 +218,18 @@
         { "command": "basicdeploy.reopenTicket", "when": "resourceScheme == bd-ticket", "group": "navigation@4" }
       ]
     },
+    "keybindings": [
+      {
+        "command": "basicdeploy.tableNextPage",
+        "key": "alt+right",
+        "when": "resourceScheme == bd-rows && editorTextFocus"
+      },
+      {
+        "command": "basicdeploy.tablePrevPage",
+        "key": "alt+left",
+        "when": "resourceScheme == bd-rows && editorTextFocus"
+      }
+    ],
     "languageModelTools": [
       {
         "name": "basicdeploy_list_containers",
