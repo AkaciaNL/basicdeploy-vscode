@@ -5,6 +5,11 @@
   "version": "0.3.0",
   "publisher": "basicdeploy",
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#2563EB",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/AkaciaNL/basicdeploy-vscode.git"
