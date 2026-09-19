@@ -252,22 +252,36 @@ export async function connectSsh(
     );
     return;
   }
-  if (!(await ensureRemoteSshInstalled())) {
-    return;
-  }
 
+  // Write the key + host block first; all three options below need it.
   const keyPath = await writeKey(context, full.subdomain, key);
   const alias = await upsertHost(full.subdomain, keyPath);
 
-  const openFolder = "Open /workspace";
-  const newWindow = "New window";
-  const choice = await vscode.window.showQuickPick([openFolder, newWindow], {
+  // Terminal = plain `ssh` in an integrated terminal: no vscode-server install,
+  // so it works on small (256 MB) containers. The two Remote-SSH options install
+  // and run code-server ON the container, which needs real RAM (Pro/Scale) and
+  // will OOM a 256 MB box.
+  const terminal = { label: "$(terminal) Open SSH terminal", detail: "Plain shell — works on any size, no server install" };
+  const openFolder = { label: "$(folder-opened) Open /workspace (Remote-SSH)", detail: "Full VS Code on the box — needs ~1 GB+ RAM" };
+  const newWindow = { label: "$(empty-window) New Remote-SSH window", detail: "Full VS Code on the box — needs ~1 GB+ RAM" };
+  const choice = await vscode.window.showQuickPick([terminal, openFolder, newWindow], {
     placeHolder: `Connect to ${full.subdomain} over SSH`,
   });
   if (!choice) {
     return;
   }
 
+  if (choice === terminal) {
+    const term = vscode.window.createTerminal({ name: `SSH ${full.subdomain}` });
+    term.show();
+    term.sendText(`ssh ${alias}`);
+    return;
+  }
+
+  // Remote-SSH options: require the extension, and warn on tiny containers.
+  if (!(await ensureRemoteSshInstalled())) {
+    return;
+  }
   if (choice === openFolder) {
     const uri = vscode.Uri.parse(`vscode-remote://ssh-remote+${alias}${REMOTE_WORKDIR}`);
     await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
