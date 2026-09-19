@@ -604,9 +604,10 @@ async function runDeploy(
       try {
         const outcome = await deployWorkspace(api, root, target.containerId, progress);
         containers.refresh();
+        await showDeployReadme(outcome);
         const open = "Open URL";
         const pick = await vscode.window.showInformationMessage(
-          `Deployed ${outcome.subdomain || outcome.containerId}.`,
+          `Synced to ${outcome.subdomain || outcome.containerId}. Add a .bd_boot.sh to start your app (see the opened guide).`,
           ...(outcome.url ? [open] : []),
         );
         if (pick === open && outcome.url) {
@@ -617,6 +618,52 @@ async function runDeploy(
       }
     },
   );
+}
+
+// After a deploy, open a short guide. BasicDeploy only syncs files into /workspace;
+// starting the app is the user's responsibility (a .bd_boot.sh or run it over SSH).
+async function showDeployReadme(outcome: { subdomain: string; url: string }): Promise<void> {
+  const sub = outcome.subdomain || "your container";
+  const url = outcome.url || "https://<subdomain>.basicdeploy.com";
+  const md = [
+    `# Deployed to ${sub}`,
+    ``,
+    `Your files were synced into **/workspace**. BasicDeploy does **not** detect a`,
+    `runtime or start your app for you — you decide how it runs.`,
+    ``,
+    `## Start your app`,
+    `Add **/workspace/.bd_boot.sh** with your start command, then deploy again. It runs`,
+    `on every deploy and whenever the container wakes.`,
+    ``,
+    "```sh",
+    `#!/bin/sh`,
+    `cd /workspace`,
+    `# install deps if you have any:`,
+    `# pip install -r requirements.txt    # or: npm install --production`,
+    `exec python app.py                   # <-- your real start command`,
+    "```",
+    ``,
+    `Your app must listen on **0.0.0.0:8080** to be reachable at:`,
+    ``,
+    `> ${url}`,
+    ``,
+    `## Prefer to run it by hand?`,
+    `Open a terminal into the container over SSH (Containers view -> Open Remote SSH ->`,
+    `**Open SSH terminal**) and run whatever you want.`,
+    ``,
+    `## Logs`,
+    `When .bd_boot.sh runs, stdout goes to **/workspace/deploy.log** and errors to`,
+    `**/workspace/deploy-error.log**.`,
+    ``,
+    `_This is your box — you know what you're doing._`,
+  ].join("\n");
+  try {
+    const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: md });
+    await vscode.window.showTextDocument(doc, { preview: true });
+    await vscode.commands.executeCommand("markdown.showPreview");
+  } catch {
+    // Non-fatal: the guide is a convenience, never block the deploy result on it.
+  }
 }
 
 async function withProgress(title: string, fn: () => Promise<void>): Promise<void> {
