@@ -75,39 +75,99 @@ function remoteSshConfigFile(): string | undefined {
   return v && v.trim() ? untildify(v.trim()) : undefined;
 }
 
-// Prepend our Include to one config file (idempotent). Include must precede any
-// Host block to apply globally, so it goes at the very top.
-async function addIncludeTo(configPath: string, includeLine: string): Promise<void> {
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  let current = "";
-  try {
-    current = await fs.readFile(configPath, "utf8");
-  } catch {
-    // file does not exist yet
-  }
-  if (current.includes(includeLine)) {
-    return;
-  }
-  const next = `${includeLine}\n\n${current}`;
-  await fs.writeFile(configPath, next, { mode: 0o600 });
-  await chmod600(configPath);
-}
+// --- managed region inside the ssh config file(s) Remote-SSH actually reads ---
+// Remote-SSH does NOT reliably follow `Include`, so an aliased Host in a separate
+// included file often fails to resolve ("Could not resolve hostname bd-..."). We
+// write our Host blocks DIRECTLY into ~/.ssh/config (and the custom
+// remote.SSH.configFile when set) inside a delimited region, which both Remote-SSH
+// and the ssh CLI always read. Uninstall is a clean removal of the region.
+const REGION_BEGIN = "# BEGIN BASICDEPLOY (managed - do not edit)";
+const REGION_END = "# END BASICDEPLOY";
 
-// Ensure the ssh config(s) Remote-SSH and the CLI read both pull in our managed
-// file. Writes to ~/.ssh/config (the CLI + Remote-SSH default) AND, if the user
-// pointed Remote-SSH at a custom configFile, to that one too. Idempotent.
-async function ensureInclude(): Promise<void> {
-  await fs.mkdir(sshDir(), { recursive: true });
-  const includeLine = `Include ${managedConfigPath()}`;
-  await addIncludeTo(mainConfigPath(), includeLine);
+// The config file(s) to keep in sync: ~/.ssh/config (CLI + Remote-SSH default) plus
+// the user's custom remote.SSH.configFile when they set a different one.
+function targetConfigFiles(): string[] {
+  const files = [mainConfigPath()];
   const custom = remoteSshConfigFile();
   if (custom && path.resolve(custom) !== path.resolve(mainConfigPath())) {
-    await addIncludeTo(custom, includeLine);
+    files.push(custom);
+  }
+  return files;
+}
+
+// The body (our Host blocks) currently inside the managed region of a config string.
+function extractRegion(config: string): string {
+  const b = config.indexOf(REGION_BEGIN);
+  const e = config.indexOf(REGION_END);
+  if (b === -1 || e === -1 || e < b) {
+    return "";
+  }
+  const afterBegin = config.indexOf("\n", b);
+  return afterBegin === -1 ? "" : config.slice(afterBegin + 1, e).trim();
+}
+
+// Replace the managed region with `body`, or append a fresh region at the end.
+function setRegion(config: string, body: string): string {
+  const region = `${REGION_BEGIN}\n${body.trim()}\n${REGION_END}\n`;
+  const b = config.indexOf(REGION_BEGIN);
+  const e = config.indexOf(REGION_END);
+  if (b !== -1 && e !== -1 && e >= b) {
+    const endLineEnd = config.indexOf("\n", e);
+    const tail = endLineEnd === -1 ? "" : config.slice(endLineEnd + 1);
+    return (config.slice(0, b) + region + tail).replace(/\n{3,}/g, "\n\n");
+  }
+  const base = config.trimEnd();
+  return (base ? base + "\n\n" : "") + region;
+}
+
+// Write the managed region `body` into every target config file (idempotent).
+async function writeRegionToTargets(body: string): Promise<void> {
+  for (const f of targetConfigFiles()) {
+    await fs.mkdir(path.dirname(f), { recursive: true });
+    let cfg = "";
+    try {
+      cfg = await fs.readFile(f, "utf8");
+    } catch {
+      // file does not exist yet
+    }
+    await fs.writeFile(f, setRegion(cfg, body), { mode: 0o600 });
+    await chmod600(f);
   }
 }
 
-// Upsert the Host block for one container in the managed config file.
+// One-time migration off the old Include-based layout (v<=0.7.1): drop our Include
+// line from the config(s) and delete the separate managed file, so stale aliases in
+// it can't shadow the in-config region. Idempotent, best-effort.
+async function removeLegacyInclude(): Promise<void> {
+  const includeLine = `Include ${managedConfigPath()}`;
+  for (const f of targetConfigFiles()) {
+    let cfg = "";
+    try {
+      cfg = await fs.readFile(f, "utf8");
+    } catch {
+      continue;
+    }
+    if (!cfg.includes(includeLine)) {
+      continue;
+    }
+    const cleaned = cfg
+      .split("\n")
+      .filter((l) => l.trim() !== includeLine)
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n");
+    await fs.writeFile(f, cleaned, { mode: 0o600 });
+  }
+  try {
+    await fs.rm(managedConfigPath(), { force: true });
+  } catch {
+    // nothing to remove
+  }
+}
+
+// Upsert the Host block for one container into the managed region of the ssh
+// config file(s) Remote-SSH reads directly. Returns the host alias.
 async function upsertHost(subdomain: string, keyPath: string): Promise<string> {
+  await removeLegacyInclude();
   const alias = hostAlias(subdomain);
   const block = [
     `Host ${alias}`,
@@ -117,21 +177,18 @@ async function upsertHost(subdomain: string, keyPath: string): Promise<string> {
     `    IdentityFile ${keyPath}`,
     `    IdentitiesOnly yes`,
     `    StrictHostKeyChecking accept-new`,
-    "",
   ].join("\n");
 
-  let current = "";
+  // Canonical current blocks come from ~/.ssh/config's region; replace this alias.
+  let mainCfg = "";
   try {
-    current = await fs.readFile(managedConfigPath(), "utf8");
+    mainCfg = await fs.readFile(mainConfigPath(), "utf8");
   } catch {
-    // first host
+    // no config yet
   }
-
-  // Drop any existing block for this alias, then append the fresh one.
-  const filtered = stripHostBlock(current, alias);
-  const next = `${filtered.trimEnd()}\n\n${block}`.replace(/^\n+/, "");
-  await fs.writeFile(managedConfigPath(), next, { mode: 0o600 });
-  await chmod600(managedConfigPath());
+  const existing = stripHostBlock(extractRegion(mainCfg), alias).trim();
+  const body = existing ? `${existing}\n\n${block}` : block;
+  await writeRegionToTargets(body);
   return alias;
 }
 
@@ -197,7 +254,6 @@ export async function connectSsh(
   }
 
   const keyPath = await writeKey(context, full.subdomain, key);
-  await ensureInclude();
   const alias = await upsertHost(full.subdomain, keyPath);
 
   const openFolder = "Open /workspace";
@@ -225,11 +281,16 @@ export async function forgetSshHost(
   subdomain: string,
 ): Promise<void> {
   try {
-    const current = await fs.readFile(managedConfigPath(), "utf8");
-    const stripped = stripHostBlock(current, hostAlias(subdomain)).trimEnd() + "\n";
-    await fs.writeFile(managedConfigPath(), stripped, { mode: 0o600 });
+    let mainCfg = "";
+    try {
+      mainCfg = await fs.readFile(mainConfigPath(), "utf8");
+    } catch {
+      // no config
+    }
+    const body = stripHostBlock(extractRegion(mainCfg), hostAlias(subdomain)).trim();
+    await writeRegionToTargets(body);
   } catch {
-    // no managed config, nothing to forget
+    // no managed region, nothing to forget
   }
   try {
     const keyPath = path.join(context.globalStorageUri.fsPath, "ssh-keys", `${subdomain}.key`);
