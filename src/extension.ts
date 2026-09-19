@@ -607,7 +607,7 @@ async function runDeploy(
         await showDeployReadme(outcome);
         const open = "Open URL";
         const pick = await vscode.window.showInformationMessage(
-          `Synced to ${outcome.subdomain || outcome.containerId}. Add a .bd_boot.sh to start your app (see the opened guide).`,
+          `Deployed to ${outcome.subdomain || outcome.containerId}. Make sure your app listens on 0.0.0.0:8080 (see the opened guide).`,
           ...(outcome.url ? [open] : []),
         );
         if (pick === open && outcome.url) {
@@ -620,42 +620,35 @@ async function runDeploy(
   );
 }
 
-// After a deploy, open a short guide. BasicDeploy only syncs files into /workspace;
-// starting the app is the user's responsibility (a .bd_boot.sh or run it over SSH).
+// After a deploy, open a short guide explaining how BasicDeploy builds and runs the
+// app (which manifest to include + that it must listen on port 8080), so the user
+// knows what their project needs.
 async function showDeployReadme(outcome: { subdomain: string; url: string }): Promise<void> {
   const sub = outcome.subdomain || "your container";
   const url = outcome.url || "https://<subdomain>.basicdeploy.com";
   const md = [
     `# Deployed to ${sub}`,
     ``,
-    `Your files were synced into **/workspace**. BasicDeploy does **not** detect a`,
-    `runtime or start your app for you — you decide how it runs.`,
+    `Your files were uploaded to **/workspace** and BasicDeploy builds and starts your`,
+    `app. It picks the runtime from a manifest in your project root:`,
     ``,
-    `## Start your app`,
-    `Add **/workspace/.bd_boot.sh** with your start command, then deploy again. It runs`,
-    `on every deploy and whenever the container wakes.`,
+    `- **Dockerfile** — built as-is (full control; add \`EXPOSE 8080\` and your \`CMD\`).`,
+    `- **package.json** — Node: runs \`npm install\` then \`npm start\` (add a "start" script).`,
+    `- **requirements.txt** — Python: runs \`pip install -r requirements.txt\` then`,
+    `  \`python app.py\` (name your entry file \`app.py\`).`,
+    `- **go.mod** — Go: \`go build\` then runs the binary.`,
     ``,
-    "```sh",
-    `#!/bin/sh`,
-    `cd /workspace`,
-    `# install deps if you have any:`,
-    `# pip install -r requirements.txt    # or: npm install --production`,
-    `exec python app.py                   # <-- your real start command`,
-    "```",
+    `Include one of these — otherwise you'll get **"Unable to detect runtime."**`,
     ``,
-    `Your app must listen on **0.0.0.0:8080** to be reachable at:`,
+    `## Listen on 0.0.0.0:8080`,
+    `That's the port routed to your public URL:`,
     ``,
     `> ${url}`,
     ``,
-    `## Prefer to run it by hand?`,
-    `Open a terminal into the container over SSH (Containers view -> Open Remote SSH ->`,
-    `**Open SSH terminal**) and run whatever you want.`,
-    ``,
     `## Logs`,
-    `When .bd_boot.sh runs, stdout goes to **/workspace/deploy.log** and errors to`,
-    `**/workspace/deploy-error.log**.`,
-    ``,
-    `_This is your box — you know what you're doing._`,
+    `Build/run output goes to **/workspace/deploy.log**, errors to`,
+    `**/workspace/deploy-error.log** — view them from the Containers view, or SSH in`,
+    `(Containers -> Open Remote SSH -> **Open SSH terminal**).`,
   ].join("\n");
   try {
     const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: md });
