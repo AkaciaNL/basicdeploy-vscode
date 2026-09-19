@@ -2,7 +2,7 @@
   "name": "basicdeploy",
   "displayName": "BasicDeploy",
   "description": "Deploy and manage your BasicDeploy apps without leaving VS Code. Ship the current workspace in one click, browse containers, databases, object storage and Kafka, stream logs, open a public URL, and SSH straight into your box. Native GitHub Copilot tools and an @basicdeploy chat participant let the agent build, deploy and debug for you.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "akacianl",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -172,6 +172,7 @@
       { "command": "basicdeploy.loadMoreTables", "title": "BasicDeploy: Load More Tables" },
       { "command": "basicdeploy.refreshStorage", "title": "BasicDeploy: Refresh Storage", "icon": "$(refresh)" },
       { "command": "basicdeploy.openObject", "title": "BasicDeploy: Open Object" },
+      { "command": "basicdeploy.downloadObject", "title": "BasicDeploy: Download Object", "icon": "$(cloud-download)" },
       { "command": "basicdeploy.loadMoreObjects", "title": "BasicDeploy: Load More Objects" },
       { "command": "basicdeploy.refreshKafka", "title": "BasicDeploy: Refresh Kafka", "icon": "$(refresh)" },
       { "command": "basicdeploy.createTopic", "title": "BasicDeploy: New Kafka Topic", "icon": "$(add)" },
@@ -224,7 +225,9 @@
         { "command": "basicdeploy.deleteTopic", "when": "view == basicdeploy.kafka && viewItem == bdTopic", "group": "9_danger" },
         { "command": "basicdeploy.replyTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@1" },
         { "command": "basicdeploy.closeTicket", "when": "view == basicdeploy.support && viewItem == bdTicketOpen", "group": "inline@2" },
-        { "command": "basicdeploy.reopenTicket", "when": "view == basicdeploy.support && viewItem == bdTicketClosed", "group": "inline@1" }
+        { "command": "basicdeploy.reopenTicket", "when": "view == basicdeploy.support && viewItem == bdTicketClosed", "group": "inline@1" },
+        { "command": "basicdeploy.downloadObject", "when": "view == basicdeploy.storage && viewItem == bdObject", "group": "inline@1" },
+        { "command": "basicdeploy.downloadObject", "when": "view == basicdeploy.storage && viewItem == bdObject", "group": "1_object@1" }
       ],
       "editor/title": [
         { "command": "basicdeploy.tablePrevPage", "when": "resourceScheme == bd-rows", "group": "navigation@1" },

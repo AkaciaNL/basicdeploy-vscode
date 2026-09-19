@@ -4,7 +4,7 @@ import { AUTH_PROVIDER_ID, BasicDeployAuthProvider, getSession } from "./auth";
 import { ContainerItem, ContainersProvider } from "./containersView";
 import { AccountProvider } from "./accountView";
 import { DatabaseProvider } from "./databaseView";
-import { StorageProvider, openObject } from "./storageView";
+import { StorageProvider, ObjectNode, openObject, downloadObject } from "./storageView";
 import { KafkaProvider, TopicNode } from "./kafkaView";
 import { DomainNode, DomainsProvider } from "./domainsView";
 import { SupportProvider, TicketNode } from "./supportView";
@@ -308,6 +308,7 @@ function registerCommands(
       vscode.window.showErrorMessage(`Could not open object: ${errorMessage(err)}`);
     }
   });
+  reg("basicdeploy.downloadObject", (node?: ObjectNode) => downloadObject(api, node));
 
   reg("basicdeploy.copyConnectionInfo", async () => {
     await withProgress("Fetching connection info...", async () => {

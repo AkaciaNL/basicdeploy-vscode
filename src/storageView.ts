@@ -120,3 +120,45 @@ export async function openObject(
     },
   );
 }
+
+// Fetch an object's bytes and save them to a local path the user picks. Wired to
+// the Storage view's right-click "Download" action, so it receives the ObjectNode.
+export async function downloadObject(
+  api: BasicDeployApi,
+  node: ObjectNode | undefined,
+): Promise<void> {
+  const key = node?.object?.key;
+  if (!key) {
+    vscode.window.showErrorMessage("No object selected to download.");
+    return;
+  }
+  const base = key.includes("/") ? key.slice(key.lastIndexOf("/") + 1) : key;
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(base || "object"),
+    saveLabel: "Download",
+  });
+  if (!target) {
+    return; // cancelled
+  }
+  try {
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Downloading ${base}...` },
+      async () => {
+        const { bytes } = await api.getObject(key);
+        await fs.writeFile(target.fsPath, bytes);
+      },
+    );
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `Download failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
+  const choice = await vscode.window.showInformationMessage(
+    `Downloaded ${base}`,
+    "Reveal in Finder",
+  );
+  if (choice === "Reveal in Finder") {
+    await vscode.commands.executeCommand("revealFileInOS", target);
+  }
+}

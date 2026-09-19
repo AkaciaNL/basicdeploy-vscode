@@ -55,23 +55,55 @@ async function writeKey(
   return keyPath;
 }
 
-// Ensure the main ssh config pulls in our managed file. Idempotent.
-async function ensureInclude(): Promise<void> {
-  await fs.mkdir(sshDir(), { recursive: true });
-  const includeLine = `Include ${managedConfigPath()}`;
+// Expand a leading ~ to the home dir (ssh config paths from settings use it).
+function untildify(p: string): string {
+  if (p === "~") {
+    return os.homedir();
+  }
+  if (p.startsWith("~/") || p.startsWith("~\\")) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
+}
+
+// The config file Remote-SSH actually reads. If the user set
+// `remote.SSH.configFile`, Remote-SSH reads THAT, not ~/.ssh/config — so an
+// Include we only put in ~/.ssh/config is never seen and the alias resolves to a
+// literal hostname ("Could not resolve hostname bd-..."). Return it when set.
+function remoteSshConfigFile(): string | undefined {
+  const v = vscode.workspace.getConfiguration("remote.SSH").get<string>("configFile");
+  return v && v.trim() ? untildify(v.trim()) : undefined;
+}
+
+// Prepend our Include to one config file (idempotent). Include must precede any
+// Host block to apply globally, so it goes at the very top.
+async function addIncludeTo(configPath: string, includeLine: string): Promise<void> {
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
   let current = "";
   try {
-    current = await fs.readFile(mainConfigPath(), "utf8");
+    current = await fs.readFile(configPath, "utf8");
   } catch {
-    // no main config yet
+    // file does not exist yet
   }
   if (current.includes(includeLine)) {
     return;
   }
-  // Include must precede any Host block to apply globally, so prepend it.
   const next = `${includeLine}\n\n${current}`;
-  await fs.writeFile(mainConfigPath(), next, { mode: 0o600 });
-  await chmod600(mainConfigPath());
+  await fs.writeFile(configPath, next, { mode: 0o600 });
+  await chmod600(configPath);
+}
+
+// Ensure the ssh config(s) Remote-SSH and the CLI read both pull in our managed
+// file. Writes to ~/.ssh/config (the CLI + Remote-SSH default) AND, if the user
+// pointed Remote-SSH at a custom configFile, to that one too. Idempotent.
+async function ensureInclude(): Promise<void> {
+  await fs.mkdir(sshDir(), { recursive: true });
+  const includeLine = `Include ${managedConfigPath()}`;
+  await addIncludeTo(mainConfigPath(), includeLine);
+  const custom = remoteSshConfigFile();
+  if (custom && path.resolve(custom) !== path.resolve(mainConfigPath())) {
+    await addIncludeTo(custom, includeLine);
+  }
 }
 
 // Upsert the Host block for one container in the managed config file.
