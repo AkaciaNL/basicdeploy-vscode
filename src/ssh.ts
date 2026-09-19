@@ -174,7 +174,10 @@ async function upsertHost(subdomain: string, keyPath: string): Promise<string> {
     `    HostName ${SSH_HOST}`,
     `    Port ${SSH_PORT}`,
     `    User ${subdomain}`,
-    `    IdentityFile ${keyPath}`,
+    // Quote the path: on macOS the key lives under ".../Application Support/..."
+    // and an unquoted space makes ssh reject the whole config ("identityfile extra
+    // arguments at end of line" -> terminating, 1 bad configuration options).
+    `    IdentityFile "${keyPath}"`,
     `    IdentitiesOnly yes`,
     `    StrictHostKeyChecking accept-new`,
   ].join("\n");
