@@ -511,6 +511,76 @@ function registerCommands(
   });
 }
 
+// Resolve which container a deploy targets. Returns {containerId} where undefined
+// means "create a new one"; returns undefined to abort. Warns before overwriting
+// an existing container, and blocks a new-container deploy when the plan is full.
+async function resolveDeployTarget(
+  api: BasicDeployApi,
+  preselectedId: string | undefined,
+): Promise<{ containerId: string | undefined } | undefined> {
+  // Right-clicked a specific container: just confirm the overwrite.
+  if (preselectedId) {
+    let name = preselectedId;
+    try {
+      const c = await api.getContainer(preselectedId);
+      name = c.subdomain || preselectedId;
+    } catch {
+      // fall back to the id in the prompt
+    }
+    const ok = await vscode.window.showWarningMessage(
+      `Deploy will overwrite the app running in "${name}". Continue?`,
+      { modal: true },
+      "Deploy",
+    );
+    return ok === "Deploy" ? { containerId: preselectedId } : undefined;
+  }
+
+  // Otherwise ask: a new container, or overwrite an existing one.
+  const list = await api.listContainers();
+  const NEW = "$(add) New container";
+  const items: vscode.QuickPickItem[] = [
+    { label: NEW, detail: "Create a fresh container for this deploy" },
+  ];
+  if (list.length) {
+    items.push({ label: "existing", kind: vscode.QuickPickItemKind.Separator });
+    for (const c of list) {
+      items.push({ label: `$(vm) ${c.subdomain}`, description: c.status, detail: "Overwrite this container" });
+    }
+  }
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: "Deploy to which container?",
+  });
+  if (!pick) {
+    return undefined;
+  }
+
+  if (pick.label === NEW) {
+    // Out-of-containers guard: block before packaging if the plan is full.
+    try {
+      const me = await api.me();
+      const max = me.plan.effectiveMaxContainers;
+      if (list.length >= max) {
+        vscode.window.showErrorMessage(
+          `You're at your container limit (${list.length}/${max}). Delete a container or upgrade your plan to deploy a new one.`,
+        );
+        return undefined;
+      }
+    } catch {
+      // If limits can't be read, let the backend enforce the cap.
+    }
+    return { containerId: undefined };
+  }
+
+  const sub = pick.label.replace(/^\$\(vm\)\s*/, "");
+  const target = list.find((c) => c.subdomain === sub);
+  const ok = await vscode.window.showWarningMessage(
+    `Deploy will overwrite the app running in "${sub}". Continue?`,
+    { modal: true },
+    "Deploy",
+  );
+  return ok === "Deploy" ? { containerId: target?.id } : undefined;
+}
+
 async function runDeploy(
   api: BasicDeployApi,
   containers: ContainersProvider,
@@ -524,11 +594,15 @@ async function runDeploy(
   if (!root) {
     return;
   }
+  const target = await resolveDeployTarget(api, containerId);
+  if (!target) {
+    return; // user cancelled or blocked (limit reached)
+  }
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: "BasicDeploy" },
     async (progress) => {
       try {
-        const outcome = await deployWorkspace(api, root, containerId, progress);
+        const outcome = await deployWorkspace(api, root, target.containerId, progress);
         containers.refresh();
         const open = "Open URL";
         const pick = await vscode.window.showInformationMessage(
