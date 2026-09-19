@@ -14,7 +14,7 @@ import type { UploadImage } from "./api";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { connectSsh, forgetSshHost } from "./ssh";
-import { deployWorkspace, pickWorkspaceFolder } from "./deploy";
+import { deployWorkspace, pickWorkspaceFolder, DeployOutcome } from "./deploy";
 import { registerTools } from "./tools";
 import { registerChatParticipant } from "./chat";
 
@@ -598,32 +598,44 @@ async function runDeploy(
   if (!target) {
     return; // user cancelled or blocked (limit reached)
   }
+  // Run the deploy INSIDE the progress; show the result AFTER it returns. Awaiting a
+  // toast/readme inside withProgress keeps the "Uploading and deploying..." spinner
+  // up until the popup is dismissed — so do all UI outside the progress scope.
+  let outcome: DeployOutcome | undefined;
+  let deployError: unknown;
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: "BasicDeploy" },
     async (progress) => {
       try {
-        const outcome = await deployWorkspace(api, root, target.containerId, progress);
+        outcome = await deployWorkspace(api, root, target.containerId, progress);
         containers.refresh();
-        await showDeployReadme(outcome);
-        const open = "Open URL";
-        const pick = await vscode.window.showInformationMessage(
-          `Deployed to ${outcome.subdomain || outcome.containerId}. Make sure your app listens on 0.0.0.0:8080 (see the opened guide).`,
-          ...(outcome.url ? [open] : []),
-        );
-        if (pick === open && outcome.url) {
-          await vscode.env.openExternal(vscode.Uri.parse(outcome.url));
-        }
       } catch (err) {
-        vscode.window.showErrorMessage(`Deploy failed: ${errorMessage(err)}`);
-        // A 400 means the project isn't in a shape the platform can build/run
-        // (e.g. "Unable to detect runtime"). Open the deployment guide so the user
-        // sees exactly what to include.
-        if (err instanceof ApiError && err.status === 400) {
-          await showDeployReadme({ subdomain: "", url: "" });
-        }
+        deployError = err;
       }
     },
   );
+
+  if (deployError) {
+    vscode.window.showErrorMessage(`Deploy failed: ${errorMessage(deployError)}`);
+    // Only on a FAILED deploy: a 400 means the project isn't in a shape the platform
+    // can build/run (e.g. "Unable to detect runtime"). Open the guide so the user
+    // sees what to include. Success does NOT open the guide.
+    if (deployError instanceof ApiError && deployError.status === 400) {
+      await showDeployReadme({ subdomain: "", url: "" });
+    }
+    return;
+  }
+
+  if (outcome) {
+    const open = "Open URL";
+    const pick = await vscode.window.showInformationMessage(
+      `Deployed to ${outcome.subdomain || outcome.containerId}. Make sure your app listens on 0.0.0.0:8080.`,
+      ...(outcome.url ? [open] : []),
+    );
+    if (pick === open && outcome.url) {
+      await vscode.env.openExternal(vscode.Uri.parse(outcome.url));
+    }
+  }
 }
 
 // After a deploy, open a short guide explaining how BasicDeploy builds and runs the
