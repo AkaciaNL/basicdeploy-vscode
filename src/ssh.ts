@@ -274,7 +274,10 @@ export async function connectSsh(
   if (choice === terminal) {
     const term = vscode.window.createTerminal({ name: `SSH ${full.subdomain}` });
     term.show();
-    term.sendText(`ssh ${alias}`);
+    // Land in /workspace (their deployed code), not the home dir. Single quotes keep
+    // the remote command from being expanded by the local shell; -t forces a TTY so
+    // the interactive login shell works. Falls back to home if /workspace is absent.
+    term.sendText("ssh -t " + alias + " 'cd /workspace 2>/dev/null; exec ${SHELL:-bash} -l'");
     return;
   }
 
