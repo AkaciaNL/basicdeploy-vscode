@@ -180,6 +180,10 @@ async function upsertHost(subdomain: string, keyPath: string): Promise<string> {
     `    IdentityFile "${keyPath}"`,
     `    IdentitiesOnly yes`,
     `    StrictHostKeyChecking accept-new`,
+    // Skip the host-key-rotation probe (hostkeys-00@openssh.com): sshpiperd can't
+    // prove its RSA host key, which logs a harmless "server gave bad signature for
+    // RSA key 0" warning on every connect. UpdateHostKeys no suppresses it.
+    `    UpdateHostKeys no`,
   ].join("\n");
 
   // Canonical current blocks come from ~/.ssh/config's region; replace this alias.
