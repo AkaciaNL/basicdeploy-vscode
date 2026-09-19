@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BasicDeployApi } from "./api";
+import { BasicDeployApi, ApiError } from "./api";
 import { AUTH_PROVIDER_ID, BasicDeployAuthProvider, getSession } from "./auth";
 import { ContainerItem, ContainersProvider } from "./containersView";
 import { AccountProvider } from "./accountView";
@@ -615,6 +615,12 @@ async function runDeploy(
         }
       } catch (err) {
         vscode.window.showErrorMessage(`Deploy failed: ${errorMessage(err)}`);
+        // A 400 means the project isn't in a shape the platform can build/run
+        // (e.g. "Unable to detect runtime"). Open the deployment guide so the user
+        // sees exactly what to include.
+        if (err instanceof ApiError && err.status === 400) {
+          await showDeployReadme({ subdomain: "", url: "" });
+        }
       }
     },
   );
